@@ -1,7 +1,10 @@
+#[allow(dead_code, unused_imports)]
 mod set1 {
 
     use base64::encode;
     use hex_literal::hex;
+    use std::collections::HashSet;
+    use std::str;
 
     #[test]
     fn challenge_1_1() {
@@ -22,16 +25,22 @@ mod set1 {
         input.map(|&x| format!("{:X}", x)).collect::<String>()
     }
 
+    fn xor_bytes<'a, I>(iter1: I, iter2: I) -> Vec<u8>
+    where
+        I: Iterator<Item = &'a u8>,
+    {
+        iter1
+            .zip(iter2)
+            .map(|(&x1, &x2)| x1 ^ x2)
+            .collect::<Vec<u8>>()
+    }
+
     #[test]
     fn challenge_1_2() {
         // xor two byte strings
         let hex_bytes1 = hex!("1c0111001f010100061a024b53535009181c");
         let hex_bytes2 = hex!("686974207468652062756c6c277320657965");
-        let result: Vec<u8> = hex_bytes1
-            .iter()
-            .zip(hex_bytes2.iter())
-            .map(|(&x1, &x2)| x1 ^ x2)
-            .collect();
+        let result: Vec<u8> = xor_bytes(hex_bytes1.iter(), hex_bytes2.iter());
         assert_eq!(
             "746865206B696420646F6E277420706C6179",
             hex_string(result.iter())
@@ -39,8 +48,75 @@ mod set1 {
     }
 
     #[test]
-    fn dummy() {
-        let foo = hex!("1c0111001f010100061a024b53535009181c");
-        println!("{:?}", hex_string(foo.iter()));
+    fn challenge_1_3() {
+        // single byte cipher
+        let encoded_message =
+            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        let mut min_score: f32 = 10.0;
+        let mut min_message: String = "".to_string();
+        let mut min_char: char = ' ';
+        for i in 0..=255 {
+            let candidate_cipher = vec![i; encoded_message.len()];
+            let candidate_bytes: Vec<u8> =
+                xor_bytes(encoded_message.iter(), candidate_cipher.iter());
+            let candidate_message = match str::from_utf8(&candidate_bytes) {
+                Ok(value) => value,
+                Err(_error) => continue,
+            };
+            let score = score_message(candidate_message);
+            if score < min_score {
+                min_score = score;
+                min_message.clone_from(&candidate_message.to_owned());
+                min_char = i as char;
+            }
+
+            // println!("{:?}", i as char);
+            // println!("Score: {:?}", score_message(candidate_message));
+            // println!("{:?}", candidate_message);
+        }
+        println!("Best character {:?}", min_char);
+        println!("Best message: {:?}", min_message);
+    }
+
+    fn score_message(input: &str) -> f32 {
+        // higher is worse
+        let lower_case: HashSet<char> = vec![
+            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
+            'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        ]
+        .into_iter()
+        .collect();
+        let vowels: HashSet<char> = vec!['a', 'e', 'i', 'o', 'u'].into_iter().collect();
+        let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
+            .into_iter()
+            .collect();
+
+        let mut num_lower_case = 0.0;
+        let mut num_vowels = 0.0;
+        let mut num_punctuation = 0.0;
+
+        let ideal_pct_lower_case = 0.8;
+        let ideal_pct_vowels = 0.25;
+        let ideal_pct_punctuation = 0.03;
+
+        for c in input.chars() {
+            if lower_case.contains(&c) {
+                num_lower_case += 1.0;
+            }
+            if vowels.contains(&c) {
+                num_vowels += 1.0;
+            }
+            if punctuation.contains(&c) {
+                num_punctuation += 1.0;
+            }
+        }
+        *vec![
+            (num_lower_case / (input.len() as f32) - ideal_pct_lower_case).abs(),
+            (num_vowels / (input.len() as f32) - ideal_pct_vowels).abs(),
+            (num_punctuation / (input.len() as f32) - ideal_pct_punctuation).abs(),
+        ]
+        .iter()
+        .max_by(|x, y| x.partial_cmp(y).unwrap())
+        .unwrap()
     }
 }
