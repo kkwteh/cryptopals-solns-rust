@@ -1,8 +1,7 @@
 mod set1 {
 
-    use base64::{decode, encode};
+    use base64::encode;
     use hex_literal::hex;
-    use std::convert::TryInto;
 
     #[test]
     fn challenge_1_1() {
@@ -16,11 +15,11 @@ mod set1 {
         println!("len bytes: {:?}", hex_bytes.len());
     }
 
-    fn hex_string(input: &Vec<u8>) -> String {
-        input
-            .iter()
-            .map(|&x| format!("{:X}", x))
-            .collect::<String>()
+    fn hex_string<'a, I>(input: I) -> String
+    where
+        I: Iterator<Item = &'a u8>,
+    {
+        input.map(|&x| format!("{:X}", x)).collect::<String>()
     }
 
     #[test]
@@ -33,6 +32,15 @@ mod set1 {
             .zip(hex_bytes2.iter())
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect();
-        assert_eq!("746865206B696420646F6E277420706C6179", hex_string(&result))
+        assert_eq!(
+            "746865206B696420646F6E277420706C6179",
+            hex_string(result.iter())
+        )
+    }
+
+    #[test]
+    fn dummy() {
+        let foo = hex!("1c0111001f010100061a024b53535009181c");
+        println!("{:?}", hex_string(foo.iter()));
     }
 }
