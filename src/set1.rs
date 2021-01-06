@@ -4,6 +4,7 @@ mod set1 {
     use base64::encode;
     use hex_literal::hex;
     use std::collections::HashSet;
+    use std::iter;
     use std::str;
 
     #[test]
@@ -25,12 +26,13 @@ mod set1 {
         input.map(|&x| format!("{:X}", x)).collect::<String>()
     }
 
-    fn xor_bytes<'a, I>(iter1: I, iter2: I) -> Vec<u8>
+    fn xor_bytes<'a, I, J>(iter1: I, iter2: J) -> Vec<u8>
     where
         I: Iterator<Item = &'a u8>,
+        J: Iterator<Item = &'a u8> + Clone,
     {
         iter1
-            .zip(iter2)
+            .zip(iter2.cycle())
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect::<Vec<u8>>()
     }
@@ -56,9 +58,8 @@ mod set1 {
         let mut min_message: String = "".to_string();
         let mut min_char: char = ' ';
         for i in 0..=255 {
-            let candidate_cipher = vec![i; encoded_message.len()];
             let candidate_bytes: Vec<u8> =
-                xor_bytes(encoded_message.iter(), candidate_cipher.iter());
+                xor_bytes(encoded_message.iter(), iter::once(&(i as u8)));
             let candidate_message = match str::from_utf8(&candidate_bytes) {
                 Ok(value) => value,
                 Err(_error) => continue,
@@ -67,7 +68,7 @@ mod set1 {
             if score < min_score {
                 min_score = score;
                 min_message.clone_from(&candidate_message.to_owned());
-                min_char = i as char;
+                min_char = i as u8 as char;
             }
 
             // println!("{:?}", i as char);
@@ -80,6 +81,9 @@ mod set1 {
 
     fn score_message(input: &str) -> f32 {
         // higher is worse
+        // basic intuition is that a reasonable message should score reasonably well across
+        // each of expected number of lower case letters, lower case vowels and punctuation,
+        // whereas it would be difficult for a random set of characters to do so
         let lower_case: HashSet<char> = vec![
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
             'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
