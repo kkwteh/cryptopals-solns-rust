@@ -5,6 +5,7 @@ mod set1 {
     use hex_literal::hex;
     use std::collections::HashSet;
     use std::iter;
+    use std::ops::Range;
     use std::str;
 
     #[test]
@@ -49,17 +50,16 @@ mod set1 {
         )
     }
 
-    #[test]
-    fn challenge_1_3() {
-        // single byte cipher
-        let encoded_message =
-            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+    fn best_single_char<'a, I, J>(input: I, single_bytes: J) -> &'a u8
+    where
+        I: Iterator<Item = &'a u8> + Clone,
+        J: Iterator<Item = &'a u8> + Clone,
+    {
         let mut min_score: f32 = 10.0;
         let mut min_message: String = "".to_string();
-        let mut min_char: char = ' ';
-        for i in 0..=255 {
-            let candidate_bytes: Vec<u8> =
-                xor_bytes(encoded_message.iter(), iter::once(&(i as u8)));
+        let mut min_char: &u8 = &0;
+        for i in single_bytes {
+            let candidate_bytes: Vec<u8> = xor_bytes(input.clone(), iter::once(i));
             let candidate_message = match str::from_utf8(&candidate_bytes) {
                 Ok(value) => value,
                 Err(_error) => continue,
@@ -68,15 +68,27 @@ mod set1 {
             if score < min_score {
                 min_score = score;
                 min_message.clone_from(&candidate_message.to_owned());
-                min_char = i as u8 as char;
+                min_char = i;
             }
 
             // println!("{:?}", i as char);
             // println!("Score: {:?}", score_message(candidate_message));
             // println!("{:?}", candidate_message);
         }
-        println!("Best character {:?}", min_char);
-        println!("Best message: {:?}", min_message);
+        return min_char;
+    }
+
+    #[test]
+    fn challenge_1_3() {
+        // single byte cipher
+        let encoded_message =
+            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        let mut single_bytes: Vec<u8> = Vec::new();
+        for i in 0..=255 {
+            single_bytes.push(i as u8);
+        }
+        let min_char = best_single_char(encoded_message.iter(), single_bytes.iter());
+        println!("Best character {:?}", *min_char as char);
     }
 
     #[test]
@@ -90,6 +102,21 @@ mod set1 {
             "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f",
             hex_string(encoded_bytes.iter())
         );
+    }
+
+    #[test]
+    fn challenge_1_5() {
+        use std::fs;
+        let input = fs::read_to_string("input/6.txt").unwrap();
+        let input = input.replace("\n", "");
+        for keysize in 2..4 {
+            for index in 0..keysize {
+                let transpose = input.as_bytes()[index..].iter().step_by(keysize);
+                let collected = transpose.collect::<Vec<&u8>>();
+                println!("{:?}", collected[0]);
+                println!("len {:?}", collected.len());
+            }
+        }
     }
 
     #[test]
