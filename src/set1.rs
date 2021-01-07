@@ -1,12 +1,23 @@
 #[allow(dead_code, unused_imports)]
 mod set1 {
 
-    use base64::encode;
+    use base64::{decode, encode};
     use hex_literal::hex;
+    use lazy_static::lazy_static;
     use std::collections::HashSet;
     use std::iter;
     use std::ops::Range;
     use std::str;
+
+    lazy_static! {
+        static ref SINGLE_BYTES: Vec<u8> = {
+            let mut single_bytes: Vec<u8> = Vec::new();
+            for i in 1..=255 {
+                single_bytes.push(i as u8);
+            }
+            single_bytes
+        };
+    }
 
     #[test]
     fn challenge_1_1() {
@@ -17,7 +28,6 @@ mod set1 {
             "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t",
             b64_bytes
         );
-        println!("len bytes: {:?}", hex_bytes.len());
     }
 
     fn hex_string<'a, I>(input: I) -> String
@@ -55,31 +65,28 @@ mod set1 {
         message: String,
     }
 
-    fn best_single_char<'a, I, J>(input: I, single_bytes: J) -> SingleCharResult
+    fn best_single_char<'a, I>(input: I) -> Option<SingleCharResult>
     where
         I: Iterator<Item = &'a u8> + Clone,
-        J: Iterator<Item = &'a u8> + Clone,
     {
-        let mut min_score: f32 = 10.0;
-        let mut min_message: String = "".to_string();
-        let mut min_char: &u8 = &0;
-        for i in single_bytes {
+        for i in SINGLE_BYTES.iter() {
             let candidate_bytes: Vec<u8> = xor_bytes(input.clone(), iter::once(i));
             let candidate_message = match str::from_utf8(&candidate_bytes) {
                 Ok(value) => value,
                 Err(_error) => continue,
             };
-            let score = score_message(candidate_message);
-            if score < min_score {
-                min_score = score;
-                min_message.clone_from(&candidate_message.to_owned());
-                min_char = i;
+            let stats = compute_stats(candidate_message);
+            if stats.pct_non_character < 0.001
+                && stats.pct_space > 0.01
+                && stats.pct_punctuation < 0.1
+            {
+                return Some(SingleCharResult {
+                    best_char: *i,
+                    message: candidate_message.to_owned(),
+                });
             }
         }
-        return SingleCharResult {
-            best_char: *min_char,
-            message: min_message,
-        };
+        return None;
     }
 
     #[test]
@@ -87,13 +94,16 @@ mod set1 {
         // single byte cipher
         let encoded_message =
             hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-        let mut single_bytes: Vec<u8> = Vec::new();
-        for i in 0..=255 {
-            single_bytes.push(i as u8);
+        let single_char_result = best_single_char(encoded_message.iter());
+        match single_char_result {
+            Some(result) => {
+                println!("Best character {:?}", result.best_char as char);
+                println!("message {:?}", result.message);
+            }
+            None => {
+                panic!("Did not find an answer")
+            }
         }
-        let single_char_result = best_single_char(encoded_message.iter(), single_bytes.iter());
-        println!("Best character {:?}", single_char_result.best_char as char);
-        println!("message {:?}", single_char_result.message);
     }
 
     #[test]
@@ -113,46 +123,50 @@ mod set1 {
     fn challenge_1_5() {
         use std::fs;
         let input = fs::read_to_string("input/6.txt").unwrap();
-        // let input = input.replace("\n", "");
-
-        let mut single_bytes: Vec<u8> = Vec::new();
-        for i in 0..=255 {
-            single_bytes.push(i as u8);
-        }
+        let input = input.replace("\n", "");
+        let input: Vec<u8> = decode(input).unwrap();
+        println!("input length bytes: {:?}", input.len());
 
         let keysize = find_keysize(&input);
-        // let keysize = 12;
         println!("Keysize calculated: {:?}", keysize);
         let mut keyword_chars: Vec<u8> = Vec::new();
 
-        for i in 0..keysize {
-            let transpose = input.as_bytes()[i..].iter().step_by(keysize);
-            let single_char_result = best_single_char(transpose, single_bytes.iter());
-            keyword_chars.push(single_char_result.best_char);
-            println!(
-                "message fragment {:?} - {:?}",
-                i, single_char_result.message
-            );
+        for keysize in 2..=40 {
+            let i = 0;
+            let transpose = input.iter().step_by(keysize);
+            let single_char_result = best_single_char(transpose);
+            println!("Analysis of keysize {:?}", keysize);
+            match single_char_result {
+                Some(result) => {
+                    keyword_chars.push(result.best_char);
+                    println!("Cipher char {:?}", result.best_char as char);
+                    println!("Message fragment {:?}", result.message);
+                }
+                None => {
+                    println!(
+                        "Could not find qualifying message for keysize {:?}",
+                        keysize
+                    );
+                }
+            }
         }
 
         let keyword_string: Vec<u8> = keyword_chars.into_iter().collect();
-        let final_message = xor_bytes(input.as_bytes().iter(), keyword_string.iter());
+        let final_message = xor_bytes(input.iter(), keyword_string.iter());
         println!("keyword string: {:?}", keyword_string);
         // println!("final message: {:?}", str::from_utf8(&final_message));
     }
 
-    fn find_keysize(input: &str) -> usize {
+    fn find_keysize(input: &Vec<u8>) -> usize {
         let mut best_keysize = 0;
         let mut best_hamming_distance: f64 = 99999.0;
         for keysize in 2..=40 {
             let mut hamming_distances: Vec<f64> = Vec::new();
-            for i in 0..=5 {
+            for i in 0..=4 {
                 hamming_distances.push(
                     hamming_distance(
-                        input[i * keysize..(i + 1) * keysize].as_bytes().iter(),
-                        input[(i + 1) * keysize..(i + 2) * keysize]
-                            .as_bytes()
-                            .iter(),
+                        input[i * keysize..(i + 1) * keysize].iter(),
+                        input[(i + 1) * keysize..(i + 2) * keysize].iter(),
                     ) as f64
                         / keysize as f64,
                 )
@@ -189,11 +203,15 @@ mod set1 {
             .sum::<u32>()
     }
 
-    fn score_message(input: &str) -> f32 {
-        // higher is worse
-        // basic intuition is that a reasonable message should score reasonably well across
-        // each of expected number of lower case letters, lower case vowels and punctuation,
-        // whereas it would be difficult for a random set of characters to do so
+    struct MessageStats {
+        pct_space: f64,
+        pct_punctuation: f64,
+        pct_non_character: f64,
+    }
+
+    fn compute_stats(input: &str) -> MessageStats {
+        // returns pct space, pct punctuation and pct non character
+        // which are fairly robust indicators of legitimate messages
         let lower_case: HashSet<char> = vec![
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
             'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -204,22 +222,24 @@ mod set1 {
         let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
             .into_iter()
             .collect();
-        let non_characters: HashSet<char> = vec![
-            '\u{10}', '\u{11}', '\u{12}', '\u{13}', '\u{14}', '\u{15}', '\u{16}', '\u{17}',
-            '\u{18}', '\u{19}',
-        ]
-        .into_iter()
-        .collect();
-
         let mut num_lower_case = 0.0;
         let mut num_vowels = 0.0;
         let mut num_punctuation = 0.0;
+        let mut num_non_char = 0.0;
+        let mut num_space = 0.0;
 
         let ideal_pct_lower_case = 0.8;
         let ideal_pct_vowels = 0.25;
         let ideal_pct_punctuation = 0.03;
 
         for c in input.chars() {
+            let num_value = c as u8;
+            if num_value < 32 || num_value > 126 {
+                num_non_char += 1.0;
+            }
+            if c == ' ' {
+                num_space += 1.0;
+            }
             if lower_case.contains(&c) {
                 num_lower_case += 1.0;
             }
@@ -229,17 +249,14 @@ mod set1 {
             if punctuation.contains(&c) {
                 num_punctuation += 1.0;
             }
-            if non_characters.contains(&c) {
-                return 9999.0;
-            }
         }
-        *vec![
-            (num_lower_case / (input.len() as f32) - ideal_pct_lower_case).abs(),
-            (num_vowels / (input.len() as f32) - ideal_pct_vowels).abs(),
-            (num_punctuation / (input.len() as f32) - ideal_pct_punctuation).abs(),
-        ]
-        .iter()
-        .max_by(|x, y| x.partial_cmp(y).unwrap())
-        .unwrap()
+        let pct_space = num_space / input.len() as f64;
+        let pct_punctuation = num_punctuation / input.len() as f64;
+        let pct_non_character = num_non_char / input.len() as f64;
+        MessageStats {
+            pct_space,
+            pct_punctuation,
+            pct_non_character,
+        }
     }
 }
