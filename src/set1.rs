@@ -1,10 +1,16 @@
 #[allow(dead_code, unused_imports)]
 mod set1 {
 
-    use base64::{decode, encode};
+    use aes::Aes128;
+    use base64;
+    use block_modes::block_padding::NoPadding;
+    use block_modes::Ecb;
     use hex_literal::hex;
     use lazy_static::lazy_static;
+    use openssl::symm;
+    use openssl::symm::{Cipher, Crypter};
     use std::collections::HashSet;
+    use std::fs;
     use std::iter;
     use std::ops::Range;
     use std::str;
@@ -23,7 +29,7 @@ mod set1 {
     fn challenge_1_1() {
         // hex bytes to b64 string translation
         let hex_bytes = hex!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
-        let b64_bytes = &encode(hex_bytes);
+        let b64_bytes = &base64::encode(hex_bytes);
         assert_eq!(
             "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t",
             b64_bytes
@@ -125,10 +131,9 @@ mod set1 {
 
     #[test]
     fn challenge_1_5() {
-        use std::fs;
         let input = fs::read_to_string("input/6.txt").unwrap();
         let input = input.replace("\n", "");
-        let input: Vec<u8> = decode(input).unwrap();
+        let input: Vec<u8> = base64::decode(input).unwrap();
         println!("input length bytes: {:?}", input.len());
 
         let keysize = find_keysize(&input);
@@ -138,13 +143,9 @@ mod set1 {
         for i in 0..keysize {
             let transpose = input[i..].iter().step_by(keysize);
             let single_char_result = best_single_char(transpose);
-            println!("Analysis of keysize {:?}", keysize);
             match single_char_result {
                 Some(result) => {
                     keyword_chars.push(result.best_char);
-                    println!("Cipher char {:?}", result.best_char as char);
-                    println!("Message fragment {:?}", result.message);
-                    println!("Message stats {:?}", result.stats);
                 }
                 None => {
                     println!(
@@ -177,7 +178,6 @@ mod set1 {
                 )
             }
             let avg: f64 = hamming_distances.iter().sum::<f64>() / hamming_distances.len() as f64;
-            println!("keysize - distance {:?} / {:?}", keysize, avg);
             if avg < best_hamming_distance {
                 best_hamming_distance = avg;
                 best_keysize = keysize;
@@ -218,25 +218,12 @@ mod set1 {
     fn compute_stats(input: &str) -> MessageStats {
         // returns pct space, pct punctuation and pct non character
         // which are fairly robust indicators of legitimate messages
-        let lower_case: HashSet<char> = vec![
-            'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q',
-            'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        ]
-        .into_iter()
-        .collect();
-        let vowels: HashSet<char> = vec!['a', 'e', 'i', 'o', 'u'].into_iter().collect();
         let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
             .into_iter()
             .collect();
-        let mut num_lower_case = 0.0;
-        let mut num_vowels = 0.0;
         let mut num_punctuation = 0.0;
         let mut num_non_char = 0.0;
         let mut num_space = 0.0;
-
-        let ideal_pct_lower_case = 0.8;
-        let ideal_pct_vowels = 0.25;
-        let ideal_pct_punctuation = 0.03;
 
         for c in input.chars() {
             let num_value = c as u8;
@@ -246,12 +233,7 @@ mod set1 {
             if c == ' ' {
                 num_space += 1.0;
             }
-            if lower_case.contains(&c) {
-                num_lower_case += 1.0;
-            }
-            if vowels.contains(&c) {
-                num_vowels += 1.0;
-            }
+
             if punctuation.contains(&c) {
                 num_punctuation += 1.0;
             }
@@ -264,5 +246,22 @@ mod set1 {
             pct_punctuation,
             pct_non_character,
         }
+    }
+
+    #[test]
+    fn challenge_1_6() {
+        type Aes128Ecb = Ecb<Aes128, NoPadding>;
+        let key = "YELLOW SUBMARINE".as_bytes();
+
+        let input = fs::read_to_string("input/7.txt").unwrap();
+        let input = input.replace("\n", "");
+        let input: Vec<u8> = base64::decode(input).unwrap();
+        println!("input length bytes: {:?}", input.len());
+        let cipher = Cipher::aes_128_ecb();
+        let mut output: Vec<u8> = vec![0u8; input.len() + cipher.block_size()];
+        let mut crypter = Crypter::new(cipher, symm::Mode::Decrypt, &key, None).unwrap();
+        crypter.update(&input, output.as_mut_slice());
+        let output_string = str::from_utf8(&output);
+        println!("Decrypted message: {:?}", output_string)
     }
 }
