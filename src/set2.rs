@@ -54,18 +54,37 @@ mod set2 {
             // Assume input is a multiple of 16
             let num_blocks = input.len() / BLOCK_SIZE;
             println!("Num blocks: {:?}", num_blocks);
-            let prev_cipher_text = &self.iv;
-            for i in 0..num_blocks {
-                let block = &input[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
-                println!("Block {:?}", i);
-                println!("Input block {:?}", &block);
-                let preprocessed_block = xor_bytes(block.iter(), prev_cipher_text.iter());
-                println!("Preprocessed block length {:?}", &preprocessed_block.len());
-                self.ecb.update(
-                    &preprocessed_block,
-                    &mut output[i * BLOCK_SIZE..(i + 2) * BLOCK_SIZE],
-                )?;
-                let prev_cipher_text = output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE].iter();
+            match self.mode {
+                symm::Mode::Encrypt => {
+                    let prev_cipher_text = &self.iv;
+                    for i in 0..num_blocks {
+                        let input_block = &input[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
+                        println!("Block {:?}", i);
+                        println!("Input block {:?}", &input_block);
+                        let preprocessed_block =
+                            xor_bytes(input_block.iter(), prev_cipher_text.iter());
+                        println!("Preprocessed block length {:?}", &preprocessed_block.len());
+                        self.ecb.update(
+                            &preprocessed_block,
+                            &mut output[i * BLOCK_SIZE..(i + 2) * BLOCK_SIZE],
+                        )?;
+                        let prev_cipher_text = output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE].iter();
+                    }
+                }
+                symm::Mode::Decrypt => {
+                    let xor_text = &self.iv;
+                    for i in 0..num_blocks {
+                        let input_block = &input[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
+                        println!("Block {:?}", i);
+                        let mut pretext: Vec<u8> = vec![0u8; 2 * BLOCK_SIZE];
+                        self.ecb.update(&input_block, &mut pretext)?;
+                        let next_output_block =
+                            xor_bytes(pretext[0..BLOCK_SIZE].iter(), xor_text.iter());
+                        &output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
+                            .copy_from_slice(&next_output_block);
+                        let xor_text = &output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
+                    }
+                }
             }
             Ok(input.len())
         }
