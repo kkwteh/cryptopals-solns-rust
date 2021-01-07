@@ -50,7 +50,12 @@ mod set1 {
         )
     }
 
-    fn best_single_char<'a, I, J>(input: I, single_bytes: J) -> &'a u8
+    struct SingleCharResult {
+        best_char: u8,
+        message: String,
+    }
+
+    fn best_single_char<'a, I, J>(input: I, single_bytes: J) -> SingleCharResult
     where
         I: Iterator<Item = &'a u8> + Clone,
         J: Iterator<Item = &'a u8> + Clone,
@@ -70,12 +75,11 @@ mod set1 {
                 min_message.clone_from(&candidate_message.to_owned());
                 min_char = i;
             }
-
-            // println!("{:?}", i as char);
-            // println!("Score: {:?}", score_message(candidate_message));
-            // println!("{:?}", candidate_message);
         }
-        return min_char;
+        return SingleCharResult {
+            best_char: *min_char,
+            message: min_message,
+        };
     }
 
     #[test]
@@ -87,8 +91,9 @@ mod set1 {
         for i in 0..=255 {
             single_bytes.push(i as u8);
         }
-        let min_char = best_single_char(encoded_message.iter(), single_bytes.iter());
-        println!("Best character {:?}", *min_char as char);
+        let single_char_result = best_single_char(encoded_message.iter(), single_bytes.iter());
+        println!("Best character {:?}", single_char_result.best_char as char);
+        println!("message {:?}", single_char_result.message);
     }
 
     #[test]
@@ -108,15 +113,58 @@ mod set1 {
     fn challenge_1_5() {
         use std::fs;
         let input = fs::read_to_string("input/6.txt").unwrap();
-        let input = input.replace("\n", "");
-        for keysize in 2..4 {
-            for index in 0..keysize {
-                let transpose = input.as_bytes()[index..].iter().step_by(keysize);
-                let collected = transpose.collect::<Vec<&u8>>();
-                println!("{:?}", collected[0]);
-                println!("len {:?}", collected.len());
+        // let input = input.replace("\n", "");
+
+        let mut single_bytes: Vec<u8> = Vec::new();
+        for i in 0..=255 {
+            single_bytes.push(i as u8);
+        }
+
+        let keysize = find_keysize(&input);
+        // let keysize = 12;
+        println!("Keysize calculated: {:?}", keysize);
+        let mut keyword_chars: Vec<u8> = Vec::new();
+
+        for i in 0..keysize {
+            let transpose = input.as_bytes()[i..].iter().step_by(keysize);
+            let single_char_result = best_single_char(transpose, single_bytes.iter());
+            keyword_chars.push(single_char_result.best_char);
+            println!(
+                "message fragment {:?} - {:?}",
+                i, single_char_result.message
+            );
+        }
+
+        let keyword_string: Vec<u8> = keyword_chars.into_iter().collect();
+        let final_message = xor_bytes(input.as_bytes().iter(), keyword_string.iter());
+        println!("keyword string: {:?}", keyword_string);
+        // println!("final message: {:?}", str::from_utf8(&final_message));
+    }
+
+    fn find_keysize(input: &str) -> usize {
+        let mut best_keysize = 0;
+        let mut best_hamming_distance: f64 = 99999.0;
+        for keysize in 2..=40 {
+            let mut hamming_distances: Vec<f64> = Vec::new();
+            for i in 0..=5 {
+                hamming_distances.push(
+                    hamming_distance(
+                        input[i * keysize..(i + 1) * keysize].as_bytes().iter(),
+                        input[(i + 1) * keysize..(i + 2) * keysize]
+                            .as_bytes()
+                            .iter(),
+                    ) as f64
+                        / keysize as f64,
+                )
+            }
+            let avg: f64 = hamming_distances.iter().sum::<f64>() / hamming_distances.len() as f64;
+            println!("keysize - distance {:?} / {:?}", keysize, avg);
+            if avg < best_hamming_distance {
+                best_hamming_distance = avg;
+                best_keysize = keysize;
             }
         }
+        best_keysize
     }
 
     #[test]
@@ -156,6 +204,12 @@ mod set1 {
         let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
             .into_iter()
             .collect();
+        let non_characters: HashSet<char> = vec![
+            '\u{10}', '\u{11}', '\u{12}', '\u{13}', '\u{14}', '\u{15}', '\u{16}', '\u{17}',
+            '\u{18}', '\u{19}',
+        ]
+        .into_iter()
+        .collect();
 
         let mut num_lower_case = 0.0;
         let mut num_vowels = 0.0;
@@ -174,6 +228,9 @@ mod set1 {
             }
             if punctuation.contains(&c) {
                 num_punctuation += 1.0;
+            }
+            if non_characters.contains(&c) {
+                return 9999.0;
             }
         }
         *vec![
