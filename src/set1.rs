@@ -23,7 +23,7 @@ mod set1 {
     where
         I: Iterator<Item = &'a u8>,
     {
-        input.map(|&x| format!("{:X}", x)).collect::<String>()
+        input.map(|&c| format!("{:01$x}", c, 2)).collect::<String>()
     }
 
     fn xor_bytes<'a, I, J>(iter1: I, iter2: J) -> Vec<u8>
@@ -77,6 +77,41 @@ mod set1 {
         }
         println!("Best character {:?}", min_char);
         println!("Best message: {:?}", min_message);
+    }
+
+    #[test]
+    fn challenge_1_4() {
+        let input = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
+            .as_bytes()
+            .iter();
+        let cipher_text = vec![b'I', b'C', b'E'];
+        let encoded_bytes = xor_bytes(input, cipher_text.iter());
+        assert_eq!(
+            "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f",
+            hex_string(encoded_bytes.iter())
+        );
+    }
+
+    #[test]
+    fn test_hamming_distance() {
+        assert_eq!(
+            37,
+            hamming_distance(
+                "this is a test".as_bytes().iter(),
+                "wokka wokka!!!".as_bytes().iter()
+            )
+        )
+    }
+
+    fn hamming_distance<'a, I, J>(iter1: I, iter2: J) -> u32
+    where
+        I: Iterator<Item = &'a u8>,
+        J: Iterator<Item = &'a u8> + Clone,
+    {
+        iter1
+            .zip(iter2.cycle())
+            .map(|(&x1, &x2)| (x1 ^ x2).count_ones() as u32)
+            .sum::<u32>()
     }
 
     fn score_message(input: &str) -> f32 {
