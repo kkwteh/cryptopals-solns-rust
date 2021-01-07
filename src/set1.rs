@@ -273,27 +273,8 @@ pub mod set1 {
         crypter: Crypter,
     }
 
-    #[derive(Debug)]
-    struct EcbError {
-        details: String,
-    }
-
-    impl EcbError {
-        fn new() -> EcbError {
-            EcbError {
-                details: "ECB Error".to_string(),
-            }
-        }
-    }
-
-    impl fmt::Display for EcbError {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "{}", self.details)
-        }
-    }
-
     impl SimpleEcb {
-        fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
+        pub fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
             let cipher = Cipher::aes_128_ecb();
             let crypter = Crypter::new(cipher, mode, key, None).unwrap();
             SimpleEcb { crypter }
