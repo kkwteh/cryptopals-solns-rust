@@ -61,7 +61,7 @@ mod set1 {
         let hex_bytes2 = hex!("686974207468652062756c6c277320657965");
         let result: Vec<u8> = xor_bytes(hex_bytes1.iter(), hex_bytes2.iter());
         assert_eq!(
-            "746865206B696420646F6E277420706C6179",
+            "746865206b696420646f6e277420706c6179",
             hex_string(result.iter())
         )
     }
@@ -260,7 +260,7 @@ mod set1 {
         let cipher = Cipher::aes_128_ecb();
         let mut output: Vec<u8> = vec![0u8; input.len() + cipher.block_size()];
         let mut crypter = Crypter::new(cipher, symm::Mode::Decrypt, &key, None).unwrap();
-        crypter.update(&input, output.as_mut_slice());
+        crypter.update(&input, output.as_mut_slice()).unwrap();
         let output_string = str::from_utf8(&output);
         println!("Decrypted message: {:?}", output_string)
     }
