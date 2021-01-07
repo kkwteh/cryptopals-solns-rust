@@ -1,5 +1,5 @@
 #[allow(dead_code, unused_imports)]
-mod set1 {
+pub mod set1 {
 
     use aes::Aes128;
     use base64;
@@ -8,9 +8,11 @@ mod set1 {
     use hex;
     use hex_literal;
     use lazy_static::lazy_static;
+    use openssl::error::ErrorStack;
     use openssl::symm;
     use openssl::symm::{Cipher, Crypter};
     use std::collections::HashSet;
+    use std::fmt;
     use std::fs;
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
@@ -39,14 +41,14 @@ mod set1 {
         );
     }
 
-    fn hex_string<'a, I>(input: I) -> String
+    pub fn hex_string<'a, I>(input: I) -> String
     where
         I: Iterator<Item = &'a u8>,
     {
         input.map(|&c| format!("{:01$x}", c, 2)).collect::<String>()
     }
 
-    fn xor_bytes<'a, I, J>(iter1: I, iter2: J) -> Vec<u8>
+    pub fn xor_bytes<'a, I, J>(iter1: I, iter2: J) -> Vec<u8>
     where
         I: Iterator<Item = &'a u8>,
         J: Iterator<Item = &'a u8> + Clone,
@@ -259,13 +261,47 @@ mod set1 {
         let input = fs::read_to_string("input/7.txt").unwrap();
         let input = input.replace("\n", "");
         let input: Vec<u8> = base64::decode(input).unwrap();
-        println!("input length bytes: {:?}", input.len());
-        let cipher = Cipher::aes_128_ecb();
-        let mut output: Vec<u8> = vec![0u8; input.len() + cipher.block_size()];
-        let mut crypter = Crypter::new(cipher, symm::Mode::Decrypt, &key, None).unwrap();
-        crypter.update(&input, output.as_mut_slice()).unwrap();
+        let mut simple_ecb = SimpleEcb::new(key, symm::Mode::Decrypt);
+        let block_size: usize = 16;
+        let mut output: Vec<u8> = vec![0u8; input.len() + block_size];
+        simple_ecb.update(&input, output.as_mut_slice()).unwrap();
         let output_string = str::from_utf8(&output);
         println!("Decrypted message: {:?}", output_string)
+    }
+
+    pub struct SimpleEcb {
+        crypter: Crypter,
+    }
+
+    #[derive(Debug)]
+    struct EcbError {
+        details: String,
+    }
+
+    impl EcbError {
+        fn new() -> EcbError {
+            EcbError {
+                details: "ECB Error".to_string(),
+            }
+        }
+    }
+
+    impl fmt::Display for EcbError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{}", self.details)
+        }
+    }
+
+    impl SimpleEcb {
+        fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
+            let cipher = Cipher::aes_128_ecb();
+            let crypter = Crypter::new(cipher, mode, key, None).unwrap();
+            SimpleEcb { crypter }
+        }
+
+        pub fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+            self.crypter.update(input, output)
+        }
     }
 
     #[test]
