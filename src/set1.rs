@@ -12,7 +12,7 @@ mod set1 {
     lazy_static! {
         static ref SINGLE_BYTES: Vec<u8> = {
             let mut single_bytes: Vec<u8> = Vec::new();
-            for i in 1..=255 {
+            for i in 0..=255 {
                 single_bytes.push(i as u8);
             }
             single_bytes
@@ -63,6 +63,7 @@ mod set1 {
     struct SingleCharResult {
         best_char: u8,
         message: String,
+        stats: MessageStats,
     }
 
     fn best_single_char<'a, I>(input: I) -> Option<SingleCharResult>
@@ -76,13 +77,16 @@ mod set1 {
                 Err(_error) => continue,
             };
             let stats = compute_stats(candidate_message);
+            // println!("Candidate message {:?}", candidate_message);
+            // println!("Message stats {:?}", stats);
             if stats.pct_non_character < 0.001
-                && stats.pct_space > 0.01
+                && stats.pct_space > 0.07
                 && stats.pct_punctuation < 0.1
             {
                 return Some(SingleCharResult {
                     best_char: *i,
                     message: candidate_message.to_owned(),
+                    stats: stats,
                 });
             }
         }
@@ -131,9 +135,8 @@ mod set1 {
         println!("Keysize calculated: {:?}", keysize);
         let mut keyword_chars: Vec<u8> = Vec::new();
 
-        for keysize in 2..=40 {
-            let i = 0;
-            let transpose = input.iter().step_by(keysize);
+        for i in 0..keysize {
+            let transpose = input[i..].iter().step_by(keysize);
             let single_char_result = best_single_char(transpose);
             println!("Analysis of keysize {:?}", keysize);
             match single_char_result {
@@ -141,20 +144,22 @@ mod set1 {
                     keyword_chars.push(result.best_char);
                     println!("Cipher char {:?}", result.best_char as char);
                     println!("Message fragment {:?}", result.message);
+                    println!("Message stats {:?}", result.stats);
                 }
                 None => {
                     println!(
                         "Could not find qualifying message for keysize {:?}",
                         keysize
                     );
+                    keyword_chars.push(b'?');
                 }
             }
         }
 
-        let keyword_string: Vec<u8> = keyword_chars.into_iter().collect();
-        let final_message = xor_bytes(input.iter(), keyword_string.iter());
+        let keyword_string = str::from_utf8(&keyword_chars);
+        let final_message = xor_bytes(input.iter(), keyword_chars.iter());
         println!("keyword string: {:?}", keyword_string);
-        // println!("final message: {:?}", str::from_utf8(&final_message));
+        println!("final message: {:?}", str::from_utf8(&final_message));
     }
 
     fn find_keysize(input: &Vec<u8>) -> usize {
@@ -162,7 +167,7 @@ mod set1 {
         let mut best_hamming_distance: f64 = 99999.0;
         for keysize in 2..=40 {
             let mut hamming_distances: Vec<f64> = Vec::new();
-            for i in 0..=4 {
+            for i in 0..=20 {
                 hamming_distances.push(
                     hamming_distance(
                         input[i * keysize..(i + 1) * keysize].iter(),
@@ -203,6 +208,7 @@ mod set1 {
             .sum::<u32>()
     }
 
+    #[derive(Debug)]
     struct MessageStats {
         pct_space: f64,
         pct_punctuation: f64,
@@ -234,7 +240,7 @@ mod set1 {
 
         for c in input.chars() {
             let num_value = c as u8;
-            if num_value < 32 || num_value > 126 {
+            if (num_value < 32 || num_value > 126) && num_value != 10 && num_value != 13 {
                 num_non_char += 1.0;
             }
             if c == ' ' {
