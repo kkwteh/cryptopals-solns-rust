@@ -5,12 +5,15 @@ mod set1 {
     use base64;
     use block_modes::block_padding::NoPadding;
     use block_modes::Ecb;
-    use hex_literal::hex;
+    use hex;
+    use hex_literal;
     use lazy_static::lazy_static;
     use openssl::symm;
     use openssl::symm::{Cipher, Crypter};
     use std::collections::HashSet;
     use std::fs;
+    use std::fs::File;
+    use std::io::{self, prelude::*, BufReader};
     use std::iter;
     use std::ops::Range;
     use std::str;
@@ -28,7 +31,7 @@ mod set1 {
     #[test]
     fn challenge_1_1() {
         // hex bytes to b64 string translation
-        let hex_bytes = hex!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
+        let hex_bytes = hex_literal::hex!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
         let b64_bytes = &base64::encode(hex_bytes);
         assert_eq!(
             "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t",
@@ -57,8 +60,8 @@ mod set1 {
     #[test]
     fn challenge_1_2() {
         // xor two byte strings
-        let hex_bytes1 = hex!("1c0111001f010100061a024b53535009181c");
-        let hex_bytes2 = hex!("686974207468652062756c6c277320657965");
+        let hex_bytes1 = hex_literal::hex!("1c0111001f010100061a024b53535009181c");
+        let hex_bytes2 = hex_literal::hex!("686974207468652062756c6c277320657965");
         let result: Vec<u8> = xor_bytes(hex_bytes1.iter(), hex_bytes2.iter());
         assert_eq!(
             "746865206b696420646f6e277420706c6179",
@@ -102,8 +105,9 @@ mod set1 {
     #[test]
     fn challenge_1_3() {
         // single byte cipher
-        let encoded_message =
-            hex!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        let encoded_message = hex_literal::hex!(
+            "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
+        );
         let single_char_result = best_single_char(encoded_message.iter());
         match single_char_result {
             Some(result) => {
@@ -249,8 +253,7 @@ mod set1 {
     }
 
     #[test]
-    fn challenge_1_6() {
-        type Aes128Ecb = Ecb<Aes128, NoPadding>;
+    fn challenge_1_7() {
         let key = "YELLOW SUBMARINE".as_bytes();
 
         let input = fs::read_to_string("input/7.txt").unwrap();
@@ -263,5 +266,40 @@ mod set1 {
         crypter.update(&input, output.as_mut_slice()).unwrap();
         let output_string = str::from_utf8(&output);
         println!("Decrypted message: {:?}", output_string)
+    }
+
+    #[test]
+    fn challenge_1_8() {
+        // https://crypto.stackexchange.com/questions/967/aes-in-ecb-mode-weakness
+        //         Given only what you've said, and assuming the keys are created and stored in a strong manner, using a different key to encrypt database entries mitigates the problem of ECB mode. Namely that identical plaintext, when encrypted with the same key, always outputs the same ciphertext. No security is gained by switching to CBC mode (assuming you can easily store all the keys securely, but see what @Thomas Pornin had to say about that). The practical gain by switching to CBC mode is that you only have to store one key securely. The IV's don't typically need to be protected.
+
+        // In the second scenario where the exact same key is used for all entries in ECB mode, the advantage the attacker gains is that if he knows a plaintext/ciphertext pair, he now knows everywhere that plaintext appears in the entire database.
+
+        // For example, lets say the attacker's own info happens to be in the database. He can look up the encrypted version of his gender. He now knows the gender of everyone else in the database (if the ciphertext is the same as his, he knows the entry is for a male, otherwise it is for a female). This same idea can be extended to other fields (age, first name, last name, etc). The key to this advantage is though that the attacker must have plaintext/ciphertext pairs.
+        let key = "YELLOW SUBMARINE".as_bytes();
+        let file = File::open("input/8.txt").unwrap();
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let original_hexstring = line.unwrap();
+            let input = hex::decode(original_hexstring.clone()).unwrap();
+            if detect_ecb(input.as_slice()) {
+                println!("Detected ECB encrypted line: {:?}", original_hexstring);
+            }
+        }
+    }
+
+    fn detect_ecb(input: &[u8]) -> bool {
+        let block_length = 16;
+        let num_blocks = input.len() / block_length;
+        for i in 0..num_blocks {
+            for j in i + 1..num_blocks {
+                if input[i * block_length..(i + 1) * block_length]
+                    == input[j * block_length..(j + 1) * block_length]
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
