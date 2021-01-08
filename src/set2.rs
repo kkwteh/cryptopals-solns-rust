@@ -32,6 +32,7 @@ mod set2 {
         let mut simple_cbc = SimpleCbc::new(&key, symm::Mode::Decrypt, iv);
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
         simple_cbc.update(&input, output.as_mut_slice()).unwrap();
+        println!("Decrypted message {:?}", str::from_utf8(&output));
     }
 
     #[test]
