@@ -20,6 +20,8 @@ pub mod set1 {
     use std::ops::Range;
     use std::str;
 
+    const BLOCK_SIZE: usize = 16;
+
     lazy_static! {
         static ref SINGLE_BYTES: Vec<u8> = {
             let mut single_bytes: Vec<u8> = Vec::new();
@@ -283,6 +285,26 @@ pub mod set1 {
         pub fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
             self.crypter.update(input, output)
         }
+    }
+
+    #[test]
+    fn test_simple_ecb() {
+        println!("Encrypting");
+        let key = "YELLOW SUBMARINE".to_owned().into_bytes();
+        let input = "CHARTREUSE DONUTCHARTREUSE DONUT".to_owned().into_bytes();
+        println!("Input {:?}", &input[0..32]);
+        let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Encrypt);
+        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        simple_ecb.update(&input, output.as_mut_slice()).unwrap();
+        println!("Output {:?}", &output[0..32]);
+        println!("Decrypting");
+        let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Decrypt);
+        let mut decrypt_output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        simple_ecb
+            .update(&output[0..32], decrypt_output.as_mut_slice())
+            .unwrap();
+        println!("Decrypted output {:?}", &decrypt_output);
+        assert_eq!(&input[..], &decrypt_output[0..32]);
     }
 
     #[test]
