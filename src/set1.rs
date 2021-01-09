@@ -43,20 +43,17 @@ pub mod set1 {
         );
     }
 
-    pub fn hex_string<'a, I>(input: I) -> String
-    where
-        I: Iterator<Item = &'a u8>,
-    {
-        input.map(|&c| format!("{:01$x}", c, 2)).collect::<String>()
+    pub fn hex_string<'a>(input: &'a [u8]) -> String {
+        input
+            .iter()
+            .map(|&c| format!("{:01$x}", c, 2))
+            .collect::<String>()
     }
 
-    pub fn xor_bytes<'a, I, J>(iter1: I, iter2: J) -> Vec<u8>
-    where
-        I: Iterator<Item = &'a u8>,
-        J: Iterator<Item = &'a u8> + Clone,
-    {
-        iter1
-            .zip(iter2.cycle())
+    pub fn xor_bytes<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> Vec<u8> {
+        slice1
+            .iter()
+            .zip(slice2.iter().cycle())
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect::<Vec<u8>>()
     }
@@ -66,11 +63,8 @@ pub mod set1 {
         // xor two byte strings
         let hex_bytes1 = hex_literal::hex!("1c0111001f010100061a024b53535009181c");
         let hex_bytes2 = hex_literal::hex!("686974207468652062756c6c277320657965");
-        let result: Vec<u8> = xor_bytes(hex_bytes1.iter(), hex_bytes2.iter());
-        assert_eq!(
-            "746865206b696420646f6e277420706c6179",
-            hex_string(result.iter())
-        )
+        let result: Vec<u8> = xor_bytes(&hex_bytes1, &hex_bytes2);
+        assert_eq!("746865206b696420646f6e277420706c6179", hex_string(&result))
     }
 
     struct SingleCharResult {
@@ -79,12 +73,9 @@ pub mod set1 {
         stats: MessageStats,
     }
 
-    fn best_single_char<'a, I>(input: I) -> Option<SingleCharResult>
-    where
-        I: Iterator<Item = &'a u8> + Clone,
-    {
+    fn best_single_char<'a>(input: &'a [u8]) -> Option<SingleCharResult> {
         for i in SINGLE_BYTES.iter() {
-            let candidate_bytes: Vec<u8> = xor_bytes(input.clone(), iter::once(i));
+            let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
             let candidate_message = match str::from_utf8(&candidate_bytes) {
                 Ok(value) => value,
                 Err(_error) => continue,
@@ -112,7 +103,7 @@ pub mod set1 {
         let encoded_message = hex_literal::hex!(
             "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
         );
-        let single_char_result = best_single_char(encoded_message.iter());
+        let single_char_result = best_single_char(&encoded_message);
         match single_char_result {
             Some(result) => {
                 println!("Best character {:?}", result.best_char as char);
@@ -127,13 +118,12 @@ pub mod set1 {
     #[test]
     fn challenge_1_4() {
         let input = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
-            .as_bytes()
-            .iter();
+            .as_bytes();
         let cipher_text = vec![b'I', b'C', b'E'];
-        let encoded_bytes = xor_bytes(input, cipher_text.iter());
+        let encoded_bytes = xor_bytes(input, &cipher_text);
         assert_eq!(
             "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f",
-            hex_string(encoded_bytes.iter())
+            hex_string(&encoded_bytes)
         );
     }
 
@@ -149,8 +139,8 @@ pub mod set1 {
         let mut keyword_chars: Vec<u8> = Vec::new();
 
         for i in 0..keysize {
-            let transpose = input[i..].iter().step_by(keysize);
-            let single_char_result = best_single_char(transpose);
+            let transpose: Vec<u8> = input[i..].iter().step_by(keysize).cloned().collect();
+            let single_char_result = best_single_char(&transpose);
             match single_char_result {
                 Some(result) => {
                     keyword_chars.push(result.best_char);
@@ -166,7 +156,7 @@ pub mod set1 {
         }
 
         let keyword_string = str::from_utf8(&keyword_chars);
-        let final_message = xor_bytes(input.iter(), keyword_chars.iter());
+        let final_message = xor_bytes(&input, &keyword_chars);
         println!("keyword string: {:?}", keyword_string);
         println!("final message: {:?}", str::from_utf8(&final_message));
     }
@@ -205,13 +195,13 @@ pub mod set1 {
         )
     }
 
-    fn hamming_distance<'a, I, J>(iter1: I, iter2: J) -> u32
+    fn hamming_distance<'a, I, J>(slice1: I, slice2: J) -> u32
     where
         I: Iterator<Item = &'a u8>,
         J: Iterator<Item = &'a u8> + Clone,
     {
-        iter1
-            .zip(iter2.cycle())
+        slice1
+            .zip(slice2.cycle())
             .map(|(&x1, &x2)| (x1 ^ x2).count_ones() as u32)
             .sum::<u32>()
     }

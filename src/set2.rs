@@ -3,6 +3,7 @@ mod set2 {
     use crate::set1::set1::{hex_string, xor_bytes, SimpleEcb};
     use openssl::error::ErrorStack;
     use openssl::symm;
+    use rand::Rng;
     use std::fs;
     use std::str;
     fn pkcs7_padding(input: &mut Vec<u8>, pad_size: u8) {
@@ -33,6 +34,28 @@ mod set2 {
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
         simple_cbc.update(&input, output.as_mut_slice()).unwrap();
         println!("Decrypted message {:?}", str::from_utf8(&output));
+    }
+
+    #[test]
+    fn challenge_2_3() {
+        // create ECB / CBC oracle
+        // Intuitively ECB encoded blocks should be more correlated since two
+        // blocks that are the same are perfectly correlated, and the fact
+        // that you can still see the Linux penguin after it has been
+        // ECB encoded.
+        // Therefore, average hamming distance of adjacent encoded blocks should be
+        // a telling statistic
+    }
+
+    fn random_aes_key() -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+
+        let mut result: Vec<u8> = Vec::new();
+        for _ in 0..BLOCK_SIZE {
+            let n: u8 = rng.gen();
+            result.push(n);
+        }
+        result
     }
 
     #[test]
@@ -83,13 +106,13 @@ mod set2 {
                 symm::Mode::Encrypt => {
                     for i in 0..num_blocks {
                         let input_block = &input[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
-                        let chain_block: std::slice::Iter<u8>;
+                        let chain_block: &[u8];
                         if i == 0 {
-                            chain_block = self.iv.iter();
+                            chain_block = &self.iv;
                         } else {
-                            chain_block = output[(i - 1) * BLOCK_SIZE..i * BLOCK_SIZE].iter();
+                            chain_block = &output[(i - 1) * BLOCK_SIZE..i * BLOCK_SIZE];
                         }
-                        let preprocessed_block = xor_bytes(input_block.iter(), chain_block);
+                        let preprocessed_block = xor_bytes(&input_block, chain_block);
                         self.ecb.update(
                             &preprocessed_block,
                             &mut output[i * BLOCK_SIZE..(i + 2) * BLOCK_SIZE],
@@ -104,11 +127,11 @@ mod set2 {
                     let mut pre_xor_output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
                     self.ecb.update(&input, &mut pre_xor_output)?;
                     for i in 0..num_blocks {
-                        let chain_block: std::slice::Iter<u8>;
+                        let chain_block: &[u8];
                         if i == 0 {
-                            chain_block = self.iv.iter();
+                            chain_block = &self.iv;
                         } else {
-                            chain_block = input[(i - 1) * BLOCK_SIZE..i * BLOCK_SIZE].iter();
+                            chain_block = &input[(i - 1) * BLOCK_SIZE..i * BLOCK_SIZE];
                         }
                         println!(
                             "input block {:?}",
@@ -120,7 +143,7 @@ mod set2 {
                         );
                         println!("chain_block {:?}", &chain_block);
                         let next_output_block = xor_bytes(
-                            pre_xor_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE].iter(),
+                            &pre_xor_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE],
                             chain_block,
                         );
                         &output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
