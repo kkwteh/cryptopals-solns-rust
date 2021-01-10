@@ -1,7 +1,9 @@
 #[allow(dead_code, unused_imports)]
 pub mod set1 {
 
-    use crate::kev_crypto::kev_crypto::{hex_string, xor_bytes, Crypto, SimpleEcb};
+    use crate::kev_crypto::kev_crypto::{
+        hamming_distance, hex_string, xor_bytes, Crypto, SimpleEcb,
+    };
     use base64;
     use hex;
     use hex_literal;
@@ -150,8 +152,8 @@ pub mod set1 {
             for i in 0..=20 {
                 hamming_distances.push(
                     hamming_distance(
-                        input[i * keysize..(i + 1) * keysize].iter(),
-                        input[(i + 1) * keysize..(i + 2) * keysize].iter(),
+                        &input[i * keysize..(i + 1) * keysize],
+                        &input[(i + 1) * keysize..(i + 2) * keysize],
                     ) as f64
                         / keysize as f64,
                 )
@@ -169,22 +171,8 @@ pub mod set1 {
     fn test_hamming_distance() {
         assert_eq!(
             37,
-            hamming_distance(
-                "this is a test".as_bytes().iter(),
-                "wokka wokka!!!".as_bytes().iter()
-            )
+            hamming_distance(&"this is a test".as_bytes(), &"wokka wokka!!!".as_bytes())
         )
-    }
-
-    fn hamming_distance<'a, I, J>(slice1: I, slice2: J) -> u32
-    where
-        I: Iterator<Item = &'a u8>,
-        J: Iterator<Item = &'a u8> + Clone,
-    {
-        slice1
-            .zip(slice2.cycle())
-            .map(|(&x1, &x2)| (x1 ^ x2).count_ones() as u32)
-            .sum::<u32>()
     }
 
     #[derive(Debug)]
