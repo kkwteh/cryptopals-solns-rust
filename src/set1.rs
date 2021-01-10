@@ -1,10 +1,8 @@
 #[allow(dead_code, unused_imports)]
 pub mod set1 {
 
-    use aes::Aes128;
+    use crate::kev_crypto::kev_crypto::{hex_string, xor_bytes, SimpleEcb};
     use base64;
-    use block_modes::block_padding::NoPadding;
-    use block_modes::Ecb;
     use hex;
     use hex_literal;
     use lazy_static::lazy_static;
@@ -19,8 +17,6 @@ pub mod set1 {
     use std::iter;
     use std::ops::Range;
     use std::str;
-
-    const BLOCK_SIZE: usize = 16;
 
     lazy_static! {
         static ref SINGLE_BYTES: Vec<u8> = {
@@ -41,21 +37,6 @@ pub mod set1 {
             "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t",
             b64_bytes
         );
-    }
-
-    pub fn hex_string<'a>(input: &'a [u8]) -> String {
-        input
-            .iter()
-            .map(|&c| format!("{:01$x}", c, 2))
-            .collect::<String>()
-    }
-
-    pub fn xor_bytes<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> Vec<u8> {
-        slice1
-            .iter()
-            .zip(slice2.iter().cycle())
-            .map(|(&x1, &x2)| x1 ^ x2)
-            .collect::<Vec<u8>>()
     }
 
     #[test]
@@ -261,42 +242,6 @@ pub mod set1 {
         println!("Decrypted message: {:?}", output_string)
     }
 
-    pub struct SimpleEcb {
-        crypter: Crypter,
-    }
-
-    impl SimpleEcb {
-        pub fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
-            let cipher = Cipher::aes_128_ecb();
-            let crypter = Crypter::new(cipher, mode, key, None).unwrap();
-            SimpleEcb { crypter }
-        }
-
-        pub fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
-            self.crypter.update(input, output)
-        }
-    }
-
-    #[test]
-    fn test_simple_ecb() {
-        println!("Encrypting");
-        let key = "YELLOW SUBMARINE".to_owned().into_bytes();
-        let input = "CHARTREUSE DONUTCHARTREUSE DONUT".to_owned().into_bytes();
-        println!("Input {:?}", &input[0..32]);
-        let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Encrypt);
-        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
-        simple_ecb.update(&input, output.as_mut_slice()).unwrap();
-        println!("Output {:?}", &output[0..32]);
-        println!("Decrypting");
-        let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Decrypt);
-        let mut decrypt_output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
-        simple_ecb
-            .update(&output[0..32], decrypt_output.as_mut_slice())
-            .unwrap();
-        println!("Decrypted output {:?}", &decrypt_output);
-        assert_eq!(&input[..], &decrypt_output[0..32]);
-    }
-
     #[test]
     fn challenge_1_8() {
         // https://crypto.stackexchange.com/questions/967/aes-in-ecb-mode-weakness
@@ -305,7 +250,6 @@ pub mod set1 {
         // In the second scenario where the exact same key is used for all entries in ECB mode, the advantage the attacker gains is that if he knows a plaintext/ciphertext pair, he now knows everywhere that plaintext appears in the entire database.
 
         // For example, lets say the attacker's own info happens to be in the database. He can look up the encrypted version of his gender. He now knows the gender of everyone else in the database (if the ciphertext is the same as his, he knows the entry is for a male, otherwise it is for a female). This same idea can be extended to other fields (age, first name, last name, etc). The key to this advantage is though that the attacker must have plaintext/ciphertext pairs.
-        let key = "YELLOW SUBMARINE".as_bytes();
         let file = File::open("input/8.txt").unwrap();
         let reader = BufReader::new(file);
         for line in reader.lines() {

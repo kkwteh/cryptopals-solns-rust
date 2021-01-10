@@ -1,5 +1,5 @@
 [package]
-name = "matasanorust"
+name = "cryptopals-rust"
 version = "0.1.0"
 authors = ["Kevin Teh <kkwteh@gmail.com>"]
 edition = "2018"
