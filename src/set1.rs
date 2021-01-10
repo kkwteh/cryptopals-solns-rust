@@ -1,7 +1,7 @@
 #[allow(dead_code, unused_imports)]
 pub mod set1 {
 
-    use crate::kev_crypto::kev_crypto::{hex_string, xor_bytes, SimpleEcb};
+    use crate::kev_crypto::kev_crypto::{hex_string, xor_bytes, Crypto, SimpleEcb};
     use base64;
     use hex;
     use hex_literal;
