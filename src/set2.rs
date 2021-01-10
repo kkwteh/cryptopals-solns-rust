@@ -45,14 +45,11 @@ mod set2 {
         // ECB encoded.
         // Therefore, average hamming distance of adjacent encoded blocks should be
         // a telling statistic
-        let mut rng = rand::thread_rng();
-        let prefix: Vec<u8> = (1..rng.gen_range(5..=10))
-            .map(|_| rng.gen::<u8>())
-            .collect();
-        let postfix: Vec<u8> = (1..rng.gen_range(5..=10))
-            .map(|_| rng.gen::<u8>())
-            .collect();
-        println!("{:?}", prefix);
+        let key = random_aes_key();
+        let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&key, symm::Mode::Encrypt));
+        let input = "Hello world!".to_owned().into_bytes();
+        let output = encryption_oracle_2_3(&input, crypto);
+        println!("{:?}", output);
     }
 
     enum Encrypter {
@@ -60,8 +57,20 @@ mod set2 {
         SimpleEcb,
     }
 
-    fn encryption_oracle_2_3(input: &[u8]) -> Vec<u8> {
-        return Vec::new();
+    fn encryption_oracle_2_3(input: &[u8], mut crypto: Box<dyn Crypto>) -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+        let prefix: Vec<u8> = (1..rng.gen_range(5..=10))
+            .map(|_| rng.gen::<u8>())
+            .collect();
+        let postfix: Vec<u8> = (1..rng.gen_range(5..=10))
+            .map(|_| rng.gen::<u8>())
+            .collect();
+
+        let concatenated = [&prefix[..], input, &postfix[..]].concat();
+
+        let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
+        crypto.update(&concatenated, output.as_mut_slice()).unwrap();
+        return output;
     }
 
     fn random_aes_key() -> Vec<u8> {
