@@ -50,6 +50,14 @@ pub mod kev_crypto {
     }
 
     #[test]
+    fn test_hamming_distance() {
+        assert_eq!(
+            37,
+            hamming_distance(&"this is a test".as_bytes(), &"wokka wokka!!!".as_bytes())
+        )
+    }
+
+    #[test]
     fn test_simple_ecb() {
         let block_size: usize = 16;
         println!("Encrypting");

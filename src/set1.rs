@@ -31,7 +31,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_1() {
+    fn challenge_1() {
         // hex bytes to b64 string translation
         let hex_bytes = hex_literal::hex!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
         let b64_bytes = &base64::encode(hex_bytes);
@@ -42,7 +42,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_2() {
+    fn challenge_2() {
         // xor two byte strings
         let hex_bytes1 = hex_literal::hex!("1c0111001f010100061a024b53535009181c");
         let hex_bytes2 = hex_literal::hex!("686974207468652062756c6c277320657965");
@@ -81,7 +81,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_3() {
+    fn challenge_3() {
         // single byte cipher
         let encoded_message = hex_literal::hex!(
             "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
@@ -99,7 +99,26 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_4() {
+    fn challenge_4() {
+        let file = File::open("input/4.txt").unwrap();
+        let reader = BufReader::new(file);
+        for line in reader.lines() {
+            let original_hexstring = line.unwrap();
+            let input = hex::decode(original_hexstring.clone()).unwrap();
+            let single_char_result = best_single_char(&input);
+            match single_char_result {
+                Some(result) => {
+                    println!("Detected xor encoding for string {:?}", original_hexstring);
+                    println!("Best character {:?}", result.best_char as char);
+                    println!("message {:?}", result.message);
+                }
+                None => {}
+            }
+        }
+    }
+
+    #[test]
+    fn challenge_5() {
         let input = "Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"
             .as_bytes();
         let cipher_text = vec![b'I', b'C', b'E'];
@@ -111,7 +130,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_5() {
+    fn challenge_6() {
         let input = fs::read_to_string("input/6.txt").unwrap();
         let input = input.replace("\n", "");
         let input: Vec<u8> = base64::decode(input).unwrap();
@@ -167,14 +186,6 @@ pub mod set1 {
         best_keysize
     }
 
-    #[test]
-    fn test_hamming_distance() {
-        assert_eq!(
-            37,
-            hamming_distance(&"this is a test".as_bytes(), &"wokka wokka!!!".as_bytes())
-        )
-    }
-
     #[derive(Debug)]
     struct MessageStats {
         pct_space: f64,
@@ -216,7 +227,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_7() {
+    fn challenge_7() {
         let key = "YELLOW SUBMARINE".as_bytes();
 
         let input = fs::read_to_string("input/7.txt").unwrap();
@@ -231,7 +242,7 @@ pub mod set1 {
     }
 
     #[test]
-    fn challenge_1_8() {
+    fn challenge_8() {
         // https://crypto.stackexchange.com/questions/967/aes-in-ecb-mode-weakness
         //         Given only what you've said, and assuming the keys are created and stored in a strong manner, using a different key to encrypt database entries mitigates the problem of ECB mode. Namely that identical plaintext, when encrypted with the same key, always outputs the same ciphertext. No security is gained by switching to CBC mode (assuming you can easily store all the keys securely, but see what @Thomas Pornin had to say about that). The practical gain by switching to CBC mode is that you only have to store one key securely. The IV's don't typically need to be protected.
 
