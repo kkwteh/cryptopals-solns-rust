@@ -7,6 +7,9 @@ mod set2 {
     use openssl::error::ErrorStack;
     use openssl::symm;
     use rand::Rng;
+    use serde::{Deserialize, Serialize};
+    use serde_derive::{Deserialize, Serialize};
+    use std::collections::HashMap;
     use std::fs;
     use std::str;
     fn pkcs7_padding(input: &mut Vec<u8>, pad_size: u8) {
@@ -161,24 +164,6 @@ mod set2 {
                 }
             }
         }
-        // let one_byte_short: Vec<u8> = (0..(BLOCK_SIZE - 1)).map(|_| 'A' as u8).collect();
-        // let one_byte_short_output = &challenge_12_oracle(&one_byte_short)[0..BLOCK_SIZE];
-        // for possible_byte in 0..256 {
-        //     let input: Vec<u8> = (0..(BLOCK_SIZE))
-        //         .map(|j| {
-        //             if j < BLOCK_SIZE - 1 {
-        //                 'A' as u8
-        //             } else {
-        //                 possible_byte as u8
-        //             }
-        //         })
-        //         .collect();
-        //     let output = &challenge_12_oracle(&input)[0..BLOCK_SIZE];
-        //     if output == one_byte_short_output {
-        //         println!("Detected first byte: {:?}", possible_byte as u8 as char);
-        //         break;
-        //     }
-        // }
     }
 
     #[test]
@@ -225,5 +210,21 @@ mod set2 {
             result.push(n);
         }
         result
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub struct KeyValue {
+        pub map: HashMap<String, String>,
+    }
+
+    fn parse_kv(input: &[u8]) -> String {
+        let mut map: HashMap<String, String> = HashMap::new();
+        map.insert("foo".to_string(), "bar".to_string());
+        let kv = KeyValue { map };
+        serde_json::to_string(&kv.map).unwrap()
+    }
+    #[test]
+    fn test_parse_kv() {
+        println!("{:?}", parse_kv(&[1]));
     }
 }
