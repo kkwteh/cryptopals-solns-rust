@@ -114,10 +114,6 @@ pub mod kev_crypto {
                             &preprocessed_block,
                             &mut output[i * BLOCK_SIZE..(i + 2) * BLOCK_SIZE],
                         )?;
-                        println!(
-                            "After update output block {:?}",
-                            &output[i * BLOCK_SIZE..(i + 2) * BLOCK_SIZE]
-                        );
                     }
                 }
                 symm::Mode::Decrypt => {
@@ -145,10 +141,6 @@ pub mod kev_crypto {
                         );
                         &output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
                             .copy_from_slice(&next_output_block[0..BLOCK_SIZE]);
-                        println!(
-                            "After update output block {:?}",
-                            &output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
-                        );
                     }
                 }
             }
@@ -178,5 +170,21 @@ pub mod kev_crypto {
             .unwrap();
         println!("Decrypted output {:?}", &decrypt_output[0..48]);
         assert_eq!(&input[..], &decrypt_output[0..input.len()]);
+    }
+
+    pub fn detect_ecb(input: &[u8]) -> bool {
+        // Attempts to detect ECB encoded bytes by finding two separate blocks that are equal.
+        let block_length = 16;
+        let num_blocks = input.len() / block_length;
+        for i in 0..num_blocks {
+            for j in i + 1..num_blocks {
+                if input[i * block_length..(i + 1) * block_length]
+                    == input[j * block_length..(j + 1) * block_length]
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

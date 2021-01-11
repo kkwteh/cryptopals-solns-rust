@@ -261,6 +261,7 @@ pub mod set1 {
     }
 
     fn detect_ecb(input: &[u8]) -> bool {
+        // Attempts to detect ECB encoded bytes by finding two separate blocks that are equal.
         let block_length = 16;
         let num_blocks = input.len() / block_length;
         for i in 0..num_blocks {
