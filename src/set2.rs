@@ -107,16 +107,31 @@ mod set2 {
         } else {
             panic!("Could not detect that function is using ECB encryption");
         }
-        let num_blocks = 8;
+
+        let standard_output = challenge_12_oracle(&[]);
+        println!("Number of bytes to decrypt: {:?}", standard_output.len());
+        let num_blocks = standard_output.len() / BLOCK_SIZE + 1;
+        println!("Number blocks to decrypt: {:?}", num_blocks);
+
         let mut known_bytes: Vec<u8> = Vec::new();
-        // prefixes
+        // For each block:
+        // one byte short output
         // A*15,A*14,...A*1,A*0
         // test string
         // A*15 + guessed byte
         // A*14P1 + guessed byte
         // A*13P1-P2 + guessed byte
+        // A*0P1-P15+guessed byte
+        // last 15 known plain text characters
         for block_index in 0..num_blocks {
             for byte_index in 0..BLOCK_SIZE {
+                // We subtract BLOCK_SIZE to account for the empty block added
+                // to satisfy the padding requirement.
+                if known_bytes.len() == standard_output.len() - BLOCK_SIZE {
+                    println!("Finished decrypting - breaking out");
+                    println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
+                    return;
+                }
                 let prefix: Vec<u8> = (0..(BLOCK_SIZE - byte_index - 1))
                     .map(|_| 'A' as u8)
                     .collect();
@@ -136,7 +151,6 @@ mod set2 {
                     };
                     let output = &challenge_12_oracle(&concatenated)[0..BLOCK_SIZE];
                     if output == one_byte_short_output {
-                        println!("Concatenated length {:?}", concatenated.len());
                         println!(
                             "Block index {:?}, byte index {:?}, Detected byte: {:?}",
                             block_index, byte_index, possible_byte as u8 as char
