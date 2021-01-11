@@ -107,7 +107,7 @@ mod set2 {
         } else {
             panic!("Could not detect that function is using ECB encryption");
         }
-        let num_blocks = 1;
+        let num_blocks = 8;
         let mut known_bytes: Vec<u8> = Vec::new();
         // prefixes
         // A*15,A*14,...A*1,A*0
@@ -120,10 +120,20 @@ mod set2 {
                 let prefix: Vec<u8> = (0..(BLOCK_SIZE - byte_index - 1))
                     .map(|_| 'A' as u8)
                     .collect();
+
                 let one_byte_short_output = &challenge_12_oracle(&prefix)
                     [block_index * BLOCK_SIZE..(block_index + 1) * BLOCK_SIZE];
+
                 for possible_byte in 0..=255 {
-                    let concatenated = [&prefix[..], &known_bytes, &[possible_byte]].concat();
+                    let concatenated = if block_index == 0 {
+                        [&prefix[..], &known_bytes, &[possible_byte]].concat()
+                    } else {
+                        [
+                            &known_bytes[known_bytes.len() - BLOCK_SIZE + 1..],
+                            &[possible_byte],
+                        ]
+                        .concat()
+                    };
                     let output = &challenge_12_oracle(&concatenated)[0..BLOCK_SIZE];
                     if output == one_byte_short_output {
                         println!("Concatenated length {:?}", concatenated.len());
@@ -137,24 +147,24 @@ mod set2 {
                 }
             }
         }
-        let one_byte_short: Vec<u8> = (0..(BLOCK_SIZE - 1)).map(|_| 'A' as u8).collect();
-        let one_byte_short_output = &challenge_12_oracle(&one_byte_short)[0..BLOCK_SIZE];
-        for possible_byte in 0..256 {
-            let input: Vec<u8> = (0..(BLOCK_SIZE))
-                .map(|j| {
-                    if j < BLOCK_SIZE - 1 {
-                        'A' as u8
-                    } else {
-                        possible_byte as u8
-                    }
-                })
-                .collect();
-            let output = &challenge_12_oracle(&input)[0..BLOCK_SIZE];
-            if output == one_byte_short_output {
-                println!("Detected first byte: {:?}", possible_byte as u8 as char);
-                break;
-            }
-        }
+        // let one_byte_short: Vec<u8> = (0..(BLOCK_SIZE - 1)).map(|_| 'A' as u8).collect();
+        // let one_byte_short_output = &challenge_12_oracle(&one_byte_short)[0..BLOCK_SIZE];
+        // for possible_byte in 0..256 {
+        //     let input: Vec<u8> = (0..(BLOCK_SIZE))
+        //         .map(|j| {
+        //             if j < BLOCK_SIZE - 1 {
+        //                 'A' as u8
+        //             } else {
+        //                 possible_byte as u8
+        //             }
+        //         })
+        //         .collect();
+        //     let output = &challenge_12_oracle(&input)[0..BLOCK_SIZE];
+        //     if output == one_byte_short_output {
+        //         println!("Detected first byte: {:?}", possible_byte as u8 as char);
+        //         break;
+        //     }
+        // }
     }
 
     #[test]
