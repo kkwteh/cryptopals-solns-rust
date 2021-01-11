@@ -217,14 +217,18 @@ mod set2 {
         pub map: HashMap<String, String>,
     }
 
-    fn parse_kv(input: &[u8]) -> String {
+    fn parse_kv(input: &str) -> String {
         let mut map: HashMap<String, String> = HashMap::new();
-        map.insert("foo".to_string(), "bar".to_string());
+        for pair in input.split('&') {
+            let pair_vec: Vec<&str> = pair.split('=').collect();
+            assert_eq!(pair_vec.len(), 2);
+            map.insert(pair_vec[0].to_owned(), pair_vec[1].to_owned());
+        }
         let kv = KeyValue { map };
         serde_json::to_string(&kv.map).unwrap()
     }
     #[test]
     fn test_parse_kv() {
-        println!("{:?}", parse_kv(&[1]));
+        println!("{:?}", parse_kv("foo=car"));
     }
 }
