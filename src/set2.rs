@@ -192,7 +192,7 @@ mod set2 {
     }
 
     fn challenge_12_oracle(input: &[u8]) -> Vec<u8> {
-        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
+        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0BCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0C3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
         let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
         let concatenated = [&input, &unknown_string[..]].concat();
@@ -262,42 +262,40 @@ mod set2 {
 
     #[test]
     fn test_encrypt_decrypt_profile() {
-        let input = "email=foo@bar.com&uid=10&role=user";
+        let input = "email=abcdefgh@gmail.com&uid=10&role=admin";
         let encrypted = encrypt_profile(input);
         let decrypted = decrypt_profile(encrypted);
-        assert_eq!(decrypted, "email=foo@bar.com&uid=10&role=user");
+        assert_eq!(decrypted, "email=abcdefgh@gmail.com&uid=10&role=admin");
     }
 
     #[test]
     fn challenge_13() {
-        // let admin_input = "email=foo@bar.com&uid=10&role=admin";
-        // let encrypted_admin_input = encrypt_profile(admin_input);
-        // let standard_input = "email=f@bar.com&uid=10&role=user";
-        // 16 byte blocks
-        // email=f@bar.com&
-        // uid=10&role=user
-        // id=10&role=admin
-        // admin
-        // Observation: we can pad the email so that the last block processed after padding is just "user\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12"
-        // To create an admin user we just need to swap out the last block for the cipher text for "admin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11" before passing the data to the server.
-        // To determine cipher text for "admin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11", we use the input:
-        // email=bbbbbbbbbbadmin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11@bar.com
+        // Observation: we can pad the email so that the last block processed with padding is just "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C"
+        // Therefore, to create an admin user we would just need to swap out the last block for the cipher text for "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B" before passing the data to the server.
+        // To determine cipher text for "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B", we use the input:
+        // email=bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com
         // This assumes that ASCII code 11 is acceptable text (11 is the vertical tab character);
-        // email=abcdefgh@gmail.com&uid=10&role=user
+        // To create a cipher text where the last block is "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C", we could use for example
+        // email=abc@gmail.com&uid=10&role=user
+
+        // Simulate user input "bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com"
         let admin_with_padding =
-            "email=bbbbbbbbbbadmin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11@bar.com&uid=10&role=user";
+            "email=bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com&uid=10&role=user";
         let encrypted_admin_with_padding = encrypt_profile(admin_with_padding);
-        let encrypted_admin_with_padding_block = &encrypted_admin_with_padding[16..32];
-        let last_block_user = "email=abcdefgh@gmail.com&uid=10&role=user";
+        // Simulate user input "abc@gmail.com"
+        let last_block_user = "email=abc@gmail.com&uid=10&role=user";
         let encrypted_last_block_user = encrypt_profile(last_block_user);
+        // Cracked encryption!
         let hacked_admin_user = [
             &encrypted_last_block_user[0..32],
             &encrypted_admin_with_padding[16..32],
         ]
         .concat();
 
-        let admin_profile = "email=abcdefgh@gmail.com&uid=10&role=admin";
+        // Check against direct
+        let admin_profile = "email=abc@gmail.com&uid=10&role=admin";
         let encrypted_admin_user = &encrypt_profile(admin_profile);
+
         assert_eq!(hacked_admin_user, &encrypted_admin_user[..]);
     }
 
