@@ -27,19 +27,15 @@ pub mod kev_crypto {
         crypter: Crypter,
     }
 
-    pub fn hamming_distance<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> u32 {
-        slice1
-            .iter()
-            .zip(slice2.iter().cycle())
-            .map(|(&x1, &x2)| (x1 ^ x2).count_ones() as u32)
-            .sum::<u32>()
-    }
-
     impl SimpleEcb {
         pub fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
             let cipher = Cipher::aes_128_ecb();
             let crypter = Crypter::new(cipher, mode, key, None).unwrap();
             SimpleEcb { crypter }
+        }
+
+        pub fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
+            self.crypter.finalize(output)
         }
     }
 
@@ -49,6 +45,13 @@ pub mod kev_crypto {
         }
     }
 
+    pub fn hamming_distance<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> u32 {
+        slice1
+            .iter()
+            .zip(slice2.iter().cycle())
+            .map(|(&x1, &x2)| (x1 ^ x2).count_ones() as u32)
+            .sum::<u32>()
+    }
     #[test]
     fn test_hamming_distance() {
         assert_eq!(

@@ -10,6 +10,7 @@ mod set2 {
     use serde::{Deserialize, Serialize};
     use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
+    use std::fmt;
     use std::fs;
     use std::str;
     fn pkcs7_padding(input: &mut Vec<u8>, pad_size: u8) {
@@ -19,6 +20,10 @@ mod set2 {
     }
 
     const BLOCK_SIZE: usize = 16;
+
+    lazy_static! {
+        static ref KEY: Vec<u8> = random_aes_key();
+    }
 
     #[test]
     fn challenge_9() {
@@ -51,7 +56,6 @@ mod set2 {
         // ECB encoded.
         // Therefore, average hamming distance of adjacent encoded blocks should be
         // a telling statistic
-        let key = random_aes_key();
         let input = "YELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINEOne advanced diverted domestic sex repeated bringing you old. Possible procured her trifling laughter thoughts property she met way. Companions shy had solicitude favourable own. Which could saw guest man now heard but. Lasted my coming uneasy marked so should. Gravity letters it amongst herself dearest an windows by. Wooded ladies she basket season age her uneasy saw. Discourse unwilling am no described dejection incommode no listening of. Before nature his parish boy. 
             Folly words widow one downs few age every seven. If miss part by fact he park just shew. Discovered had get considered projection who favourable. Necessary up knowledge it tolerably. Unwilling departure education is be dashwoods or an. Use off agreeable law unwilling sir deficient curiosity instantly. Easy mind life fact with see has bore ten. Parish any chatty can elinor direct for former. Up as meant widow equal an share least. 
             Another journey chamber way yet females man. Way extensive and dejection get delivered deficient sincerity gentleman age. Too end instrument possession contrasted motionless. Calling offence six joy feeling. Coming merits and was talent enough far. Sir joy northward sportsmen education. Discovery incommode earnestly no he commanded if. Put still any about manor heard. 
@@ -64,7 +68,7 @@ mod set2 {
             Article nor prepare chicken you him now. Shy merits say advice ten before lovers innate add. She cordially behaviour can attempted estimable. Trees delay fancy noise manor do as an small. Felicity now law securing breeding likewise extended and. Roused either who favour why ham. ".to_owned().into_bytes();
         "Analyzing ECB Output";
         for _ in 0..10 {
-            let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&key, symm::Mode::Encrypt));
+            let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
             let output = encryption_oracle(&input, crypto);
             let is_ecb = detect_ecb(&output);
             println!("{:?}", is_ecb);
@@ -73,7 +77,7 @@ mod set2 {
         for _ in 0..10 {
             let iv = random_aes_key();
             let mut crypto: Box<dyn Crypto> =
-                Box::new(SimpleCbc::new(&key, symm::Mode::Encrypt, iv));
+                Box::new(SimpleCbc::new(&KEY, symm::Mode::Encrypt, iv));
             let output = encryption_oracle(&input, crypto);
             let is_ecb = detect_ecb(&output);
             println!("{:?}", is_ecb);
@@ -169,7 +173,6 @@ mod set2 {
     #[test]
     fn detect_block_size() {
         // trailing zeros counts are clearly periodic with period 16.
-        let key = random_aes_key();
         for i in 2..=32 {
             let repeated_bytes: Vec<u8> = (0..i).map(|_| 'A' as u8).collect();
             let output = challenge_12_oracle(&repeated_bytes);
@@ -189,9 +192,6 @@ mod set2 {
     }
 
     fn challenge_12_oracle(input: &[u8]) -> Vec<u8> {
-        lazy_static! {
-            static ref KEY: Vec<u8> = random_aes_key();
-        }
         let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
         let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
@@ -203,13 +203,7 @@ mod set2 {
 
     fn random_aes_key() -> Vec<u8> {
         let mut rng = rand::thread_rng();
-
-        let mut result: Vec<u8> = Vec::new();
-        for _ in 0..BLOCK_SIZE {
-            let n: u8 = rng.gen();
-            result.push(n);
-        }
-        result
+        (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
     }
 
     #[derive(Serialize, Deserialize, Debug)]
@@ -229,6 +223,59 @@ mod set2 {
     }
     #[test]
     fn test_parse_kv() {
-        println!("{:?}", parse_kv("foo=car"));
+        assert_eq!("{\"foo\":\"car\"}", parse_kv("foo=car"));
+    }
+
+    fn profile_for(email_address: &str) -> String {
+        let cleaned_address = email_address.to_owned().replace("&", "").replace("=", "");
+        format!("email={}&uid=10&role=user", cleaned_address)
+    }
+
+    #[test]
+    fn test_profile_for() {
+        assert_eq!(
+            "email=foo@bar.com&uid=10&role=user",
+            profile_for("foo=@bar.&com")
+        );
+    }
+
+    fn encrypt_profile(profile: &str) -> Vec<u8> {
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let mut output: Vec<u8> = vec![0u8; profile.len() + BLOCK_SIZE];
+        let profile_bytes = profile.as_bytes();
+        println!(
+            "Profile bytes length {:?} -- {:?}",
+            profile_bytes.len(),
+            profile_bytes
+        );
+        let encrypt_usize = crypto.update(profile_bytes, output.as_mut_slice()).unwrap();
+        println!("Encrypt usize {:?}", encrypt_usize);
+        let finalize_usize = crypto.finalize(&mut output[encrypt_usize..]).unwrap();
+        println!("Finalize usize {:?}", finalize_usize);
+        let result: Vec<u8> = output.drain(..(encrypt_usize + finalize_usize)).collect();
+        println!("Encrypted bytes {:?}", result);
+        result
+    }
+    fn decrypt_profile(input: Vec<u8>) -> String {
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Decrypt);
+        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        let decrypt_usize = crypto.update(&input, output.as_mut_slice()).unwrap();
+        let finalize_usize = crypto.finalize(&mut output[decrypt_usize..]).unwrap();
+        println!("Finalize usize {:?}", finalize_usize);
+        println!("Decrypt usize {:?}", decrypt_usize);
+        println!("Decrypt output {:?}", output);
+
+        let decrypted =
+            str::from_utf8(&output.as_slice()[..(decrypt_usize + finalize_usize)]).unwrap();
+        decrypted.to_owned()
+        // parse_kv(decrypted)
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_profile() {
+        let input = "email=foo@bar.com&uid=10&role=user";
+        let encrypted = encrypt_profile(input);
+        let decrypted = decrypt_profile(encrypted);
+        println!("decrypted profile: {:?}", decrypted);
     }
 }
