@@ -18,6 +18,9 @@ pub mod kev_crypto {
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect::<Vec<u8>>()
     }
+    pub fn is_ascii_character(value: &u8) -> bool {
+        return (*value >= 32 && *value <= 126) || *value == 10 || *value == 13;
+    }
 
     pub trait Crypto {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack>;

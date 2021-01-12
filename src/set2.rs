@@ -1,7 +1,8 @@
 #[allow(dead_code, unused_imports)]
 mod set2 {
     use crate::kev_crypto::kev_crypto::{
-        detect_ecb, hamming_distance, hex_string, xor_bytes, Crypto, SimpleCbc, SimpleEcb,
+        detect_ecb, hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto, SimpleCbc,
+        SimpleEcb,
     };
     use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
@@ -117,7 +118,7 @@ mod set2 {
 
         let standard_output = challenge_12_oracle(&[]);
         println!("Number of bytes to decrypt: {:?}", standard_output.len());
-        let num_blocks = standard_output.len() / BLOCK_SIZE + 1;
+        let num_blocks = standard_output.len() / BLOCK_SIZE;
         println!("Number blocks to decrypt: {:?}", num_blocks);
 
         let mut known_bytes: Vec<u8> = Vec::new();
@@ -134,7 +135,7 @@ mod set2 {
             for byte_index in 0..BLOCK_SIZE {
                 // We subtract BLOCK_SIZE to account for the empty block added
                 // to satisfy the padding requirement.
-                if known_bytes.len() == standard_output.len() - BLOCK_SIZE {
+                if known_bytes.len() == standard_output.len() {
                     println!("Finished decrypting - breaking out");
                     println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
                     return;
@@ -146,7 +147,7 @@ mod set2 {
                 let one_byte_short_output = &challenge_12_oracle(&prefix)
                     [block_index * BLOCK_SIZE..(block_index + 1) * BLOCK_SIZE];
 
-                for possible_byte in 0..=255 {
+                for possible_byte in 0..=127 {
                     let concatenated = if block_index == 0 {
                         [&prefix[..], &known_bytes, &[possible_byte]].concat()
                     } else {
@@ -158,47 +159,37 @@ mod set2 {
                     };
                     let output = &challenge_12_oracle(&concatenated)[0..BLOCK_SIZE];
                     if output == one_byte_short_output {
-                        println!(
-                            "Block index {:?}, byte index {:?}, Detected byte: {:?}",
-                            block_index, byte_index, possible_byte as u8 as char
-                        );
                         known_bytes.push(possible_byte);
                         break;
                     }
                 }
             }
         }
+        println!("Decrypted message");
+        println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
     }
 
     #[test]
     fn detect_block_size() {
-        // trailing zeros counts are clearly periodic with period 16.
+        // output size increases by multiple of 16 every 16 bytes.
+        // Therefore block size is 16.
         for i in 2..=32 {
             let repeated_bytes: Vec<u8> = (0..i).map(|_| 'A' as u8).collect();
             let output = challenge_12_oracle(&repeated_bytes);
-            let mut trailing_zero_count = 0;
-            for byte in output.iter().rev() {
-                if *byte == 0 {
-                    trailing_zero_count += 1;
-                } else {
-                    break;
-                }
-            }
-            println!(
-                "Output trailing_zero_count for i={:?}, {:?}",
-                i, trailing_zero_count
-            );
+            println!("Output length for i={:?}, {:?}", i, output.len());
         }
     }
 
     fn challenge_12_oracle(input: &[u8]) -> Vec<u8> {
         let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0BCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0C3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
-        let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
-        let concatenated = [&input, &unknown_string[..]].concat();
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let concatenated = [input, &unknown_string[..]].concat();
         let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
-        crypto.update(&concatenated, output.as_mut_slice()).unwrap();
-        return output;
+        let update_usize = crypto.update(&concatenated, output.as_mut_slice()).unwrap();
+        let finalize_usize = crypto.finalize(&mut output[update_usize..]).unwrap();
+        let result: Vec<u8> = output.drain(..(update_usize + finalize_usize)).collect();
+        result
     }
 
     fn random_aes_key() -> Vec<u8> {
@@ -270,12 +261,12 @@ mod set2 {
 
     #[test]
     fn challenge_13() {
-        // Observation: we can pad the email so that the last block processed with padding is just "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C"
+        // Observation: we can pad the email so that the last block processed (after padding) is just "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C"
         // Therefore, to create an admin user we would just need to swap out the last block for the cipher text for "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B" before passing the data to the server.
-        // To determine cipher text for "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B", we use the input:
+        // To determine the cipher text for "admin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B", we use the input:
         // email=bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com
-        // This assumes that ASCII code 11 is acceptable text (11 is the vertical tab character);
-        // To create a cipher text where the last block is "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C", we could use for example
+        // The desired cipher text is the second output block. This assumes that ASCII code 11 is acceptable text (11 is the vertical tab character);
+        // To create a cipher text where the last plaintext block is "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C", we could use for example
         // email=abc@gmail.com&uid=10&role=user
 
         // Simulate user input "bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com"
@@ -297,6 +288,28 @@ mod set2 {
         let encrypted_admin_user = &encrypt_profile(admin_profile);
 
         assert_eq!(hacked_admin_user, &encrypted_admin_user[..]);
+    }
+
+    #[test]
+    fn challenge_14() {
+        println!(
+            "Oracle output {:?}",
+            challenge_14_oracle("alskdfjasd".as_bytes())
+        );
+    }
+
+    fn challenge_14_oracle(input: &[u8]) -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+        let prefix: Vec<u8> = (0..rng.gen_range(1..16)).map(|_| rng.gen::<u8>()).collect();
+        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0BCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0C3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
+        let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let concatenated = [&prefix, input, &unknown_string[..]].concat();
+        let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
+        let update_usize = crypto.update(&concatenated, output.as_mut_slice()).unwrap();
+        let finalize_usize = crypto.finalize(&mut output[update_usize..]).unwrap();
+        let result: Vec<u8> = output.drain(..(update_usize + finalize_usize)).collect();
+        return result;
     }
 
     // Escape character algorithm

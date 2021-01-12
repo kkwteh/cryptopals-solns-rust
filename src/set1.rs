@@ -2,7 +2,7 @@
 pub mod set1 {
 
     use crate::kev_crypto::kev_crypto::{
-        hamming_distance, hex_string, xor_bytes, Crypto, SimpleEcb,
+        hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto, SimpleEcb,
     };
     use base64;
     use hex;
@@ -205,7 +205,7 @@ pub mod set1 {
 
         for c in input.chars() {
             let num_value = c as u8;
-            if (num_value < 32 || num_value > 126) && num_value != 10 && num_value != 13 {
+            if !is_ascii_character(&num_value) {
                 num_non_char += 1.0;
             }
             if c == ' ' {
