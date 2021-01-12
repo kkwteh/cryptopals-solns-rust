@@ -240,20 +240,13 @@ mod set2 {
     }
 
     fn encrypt_profile(profile: &str) -> Vec<u8> {
+        // The finalize call writes the partial block at the end of the input.
         let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
         let mut output: Vec<u8> = vec![0u8; profile.len() + BLOCK_SIZE];
         let profile_bytes = profile.as_bytes();
-        println!(
-            "Profile bytes length {:?} -- {:?}",
-            profile_bytes.len(),
-            profile_bytes
-        );
         let encrypt_usize = crypto.update(profile_bytes, output.as_mut_slice()).unwrap();
-        println!("Encrypt usize {:?}", encrypt_usize);
         let finalize_usize = crypto.finalize(&mut output[encrypt_usize..]).unwrap();
-        println!("Finalize usize {:?}", finalize_usize);
         let result: Vec<u8> = output.drain(..(encrypt_usize + finalize_usize)).collect();
-        println!("Encrypted bytes {:?}", result);
         result
     }
     fn decrypt_profile(input: Vec<u8>) -> String {
@@ -261,14 +254,10 @@ mod set2 {
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
         let decrypt_usize = crypto.update(&input, output.as_mut_slice()).unwrap();
         let finalize_usize = crypto.finalize(&mut output[decrypt_usize..]).unwrap();
-        println!("Finalize usize {:?}", finalize_usize);
-        println!("Decrypt usize {:?}", decrypt_usize);
-        println!("Decrypt output {:?}", output);
 
         let decrypted =
             str::from_utf8(&output.as_slice()[..(decrypt_usize + finalize_usize)]).unwrap();
         decrypted.to_owned()
-        // parse_kv(decrypted)
     }
 
     #[test]
@@ -276,6 +265,48 @@ mod set2 {
         let input = "email=foo@bar.com&uid=10&role=user";
         let encrypted = encrypt_profile(input);
         let decrypted = decrypt_profile(encrypted);
-        println!("decrypted profile: {:?}", decrypted);
+        assert_eq!(decrypted, "email=foo@bar.com&uid=10&role=user");
     }
+
+    #[test]
+    fn challenge_13() {
+        // let admin_input = "email=foo@bar.com&uid=10&role=admin";
+        // let encrypted_admin_input = encrypt_profile(admin_input);
+        // let standard_input = "email=f@bar.com&uid=10&role=user";
+        // 16 byte blocks
+        // email=f@bar.com&
+        // uid=10&role=user
+        // id=10&role=admin
+        // admin
+        // Observation: we can pad the email so that the last block processed after padding is just "user\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12\x12"
+        // To create an admin user we just need to swap out the last block for the cipher text for "admin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11" before passing the data to the server.
+        // To determine cipher text for "admin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11", we use the input:
+        // email=bbbbbbbbbbadmin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11@bar.com
+        // This assumes that ASCII code 11 is acceptable text (11 is the vertical tab character);
+        // email=abcdefgh@gmail.com&uid=10&role=user
+        let admin_with_padding =
+            "email=bbbbbbbbbbadmin\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11\x11@bar.com&uid=10&role=user";
+        let encrypted_admin_with_padding = encrypt_profile(admin_with_padding);
+        let encrypted_admin_with_padding_block = &encrypted_admin_with_padding[16..32];
+        let last_block_user = "email=abcdefgh@gmail.com&uid=10&role=user";
+        let encrypted_last_block_user = encrypt_profile(last_block_user);
+        let hacked_admin_user = [
+            &encrypted_last_block_user[0..32],
+            &encrypted_admin_with_padding[16..32],
+        ]
+        .concat();
+
+        let admin_profile = "email=abcdefgh@gmail.com&uid=10&role=admin";
+        let encrypted_admin_user = &encrypt_profile(admin_profile);
+        assert_eq!(hacked_admin_user, &encrypted_admin_user[..]);
+    }
+
+    // Escape character algorithm
+    //     // encoding
+    // text.replace(escape, escape + escape);
+    // text.replace(delim , escape + delim);
+
+    // // decoding
+    // text.replace(escape + delim , delim);
+    // text.replace(escape + escape, escape);
 }

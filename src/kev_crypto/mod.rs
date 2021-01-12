@@ -21,6 +21,7 @@ pub mod kev_crypto {
 
     pub trait Crypto {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack>;
+        fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack>;
     }
 
     pub struct SimpleEcb {
@@ -33,15 +34,15 @@ pub mod kev_crypto {
             let crypter = Crypter::new(cipher, mode, key, None).unwrap();
             SimpleEcb { crypter }
         }
-
-        pub fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
-            self.crypter.finalize(output)
-        }
     }
 
     impl Crypto for SimpleEcb {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
             self.crypter.update(input, output)
+        }
+
+        fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
+            self.crypter.finalize(output)
         }
     }
 
@@ -148,6 +149,9 @@ pub mod kev_crypto {
                 }
             }
             Ok(input.len())
+        }
+        fn finalize(&mut self, _output: &mut [u8]) -> Result<usize, ErrorStack> {
+            Ok(0)
         }
     }
     #[test]
