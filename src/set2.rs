@@ -532,6 +532,22 @@ mod set2 {
             }),
             validate_padding("0123456789012\x02\x02".as_bytes())
         );
+        assert_eq!(
+            "ICE ICE BABY".as_bytes(),
+            validate_padding("ICE ICE BABY\x04\x04\x04\x04".as_bytes()).unwrap()
+        );
+        assert_eq!(
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(5, 4)
+            }),
+            validate_padding("ICE ICE BABY\x05\x05\x05\x05".as_bytes())
+        );
+        assert_eq!(
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(4, 1)
+            }),
+            validate_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes())
+        );
     }
 
     // Escape character algorithm
