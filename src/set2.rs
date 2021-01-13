@@ -435,6 +435,105 @@ mod set2 {
         return result;
     }
 
+    #[derive(Debug, Eq, PartialEq)]
+    enum PaddingErrorData {
+        BadEnd(u8, usize),
+        BadLength(usize),
+    }
+    #[derive(Debug, Eq, PartialEq)]
+    struct PaddingError {
+        data: PaddingErrorData,
+    }
+
+    impl fmt::Display for PaddingError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self.data {
+                PaddingErrorData::BadEnd(last_byte, trailing_copies) => {
+                    write!(
+                        f,
+                        "{}",
+                        &format!(
+                            "Invalid padding. Last byte {} does not match number of trailing copies {}",
+                            last_byte, trailing_copies
+                        )
+                    )
+                }
+                PaddingErrorData::BadLength(length) => {
+                    write!(
+                        f,
+                        "{}",
+                        &format!(
+                            "Invalid padded string. Input length {} is not a multiple of 16",
+                            length
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fn validate_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
+        if input.len() % BLOCK_SIZE != 0 {
+            return Err(PaddingError {
+                data: PaddingErrorData::BadLength(input.len()),
+            });
+        }
+        let last_byte = input[input.len() - 1];
+        let mut trailing_copies = 0;
+        for byte in input.iter().rev() {
+            if *byte == last_byte {
+                trailing_copies += 1;
+            } else {
+                break;
+            }
+        }
+        if trailing_copies as u8 == last_byte {
+            Ok(&input[..(input.len() - trailing_copies)])
+        } else {
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(last_byte, trailing_copies),
+            })
+        }
+    }
+
+    #[test]
+    fn challenge_15() {
+        assert_eq!(
+            "012345678901234".as_bytes(),
+            validate_padding("012345678901234\x01".as_bytes()).unwrap()
+        );
+        assert_eq!(
+            "0\x012345678901234".as_bytes(),
+            validate_padding("0\x012345678901234\x01".as_bytes()).unwrap()
+        );
+        assert_eq!(
+            "01234567890123".as_bytes(),
+            validate_padding("01234567890123\x02\x02".as_bytes()).unwrap()
+        );
+        assert_eq!(
+            "0123456789012".as_bytes(),
+            validate_padding("0123456789012\x03\x03\x03".as_bytes()).unwrap()
+        );
+        assert_eq!(
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(53, 1)
+            }),
+            validate_padding("0123456789012345".as_bytes())
+        );
+        assert_eq!(
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(2, 3)
+            }),
+            validate_padding("0123456789012\x02\x02\x02".as_bytes())
+        );
+        assert_eq!(
+            Err(PaddingError {
+                data: PaddingErrorData::BadLength(15)
+            }),
+            validate_padding("0123456789012\x02\x02".as_bytes())
+        );
+    }
+
     // Escape character algorithm
     //     // encoding
     // text.replace(escape, escape + escape);
