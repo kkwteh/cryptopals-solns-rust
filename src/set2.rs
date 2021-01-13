@@ -14,11 +14,6 @@ mod set2 {
     use std::fmt;
     use std::fs;
     use std::str;
-    fn pkcs7_padding(input: &mut Vec<u8>, pad_size: u8) {
-        for _ in 0..pad_size {
-            input.push(pad_size);
-        }
-    }
 
     const BLOCK_SIZE: usize = 16;
 
@@ -26,11 +21,18 @@ mod set2 {
         static ref KEY: Vec<u8> = random_aes_key();
     }
 
+    fn pkcs7_padding(input: &mut Vec<u8>, block_length: usize) {
+        let remainder = block_length - (input.len() % block_length);
+        for _ in 0..remainder {
+            input.push(remainder as u8);
+        }
+    }
+
     #[test]
     fn challenge_9() {
         let mut input = "YELLOW SUBMARINE".to_owned().into_bytes();
-        pkcs7_padding(&mut input, 4 as u8);
-        println!("{:?}", str::from_utf8(input.as_slice()).unwrap());
+        pkcs7_padding(&mut input, 20);
+        assert_eq!("YELLOW SUBMARINE\x04\x04\x04\x04".as_bytes(), &input[..]);
     }
 
     #[test]
@@ -487,8 +489,8 @@ mod set2 {
                 break;
             }
         }
-        if trailing_copies as u8 == last_byte {
-            Ok(&input[..(input.len() - trailing_copies)])
+        if trailing_copies as u8 >= last_byte {
+            Ok(&input[..(input.len() - (last_byte as usize))])
         } else {
             Err(PaddingError {
                 data: PaddingErrorData::BadEnd(last_byte, trailing_copies),
@@ -521,10 +523,8 @@ mod set2 {
             validate_padding("0123456789012345".as_bytes())
         );
         assert_eq!(
-            Err(PaddingError {
-                data: PaddingErrorData::BadEnd(2, 3)
-            }),
-            validate_padding("0123456789012\x02\x02\x02".as_bytes())
+            "0123456789012\x02".as_bytes(),
+            validate_padding("0123456789012\x02\x02\x02".as_bytes()).unwrap()
         );
         assert_eq!(
             Err(PaddingError {
