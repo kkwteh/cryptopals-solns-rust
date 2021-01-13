@@ -133,8 +133,6 @@ mod set2 {
         // last 15 known plain text characters
         for block_index in 0..num_blocks {
             for byte_index in 0..BLOCK_SIZE {
-                // We subtract BLOCK_SIZE to account for the empty block added
-                // to satisfy the padding requirement.
                 if known_bytes.len() == standard_output.len() {
                     println!("Finished decrypting - breaking out");
                     println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
@@ -181,7 +179,7 @@ mod set2 {
     }
 
     fn challenge_12_oracle(input: &[u8]) -> Vec<u8> {
-        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0BCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0C3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
+        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
         let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
         let concatenated = [input, &unknown_string[..]].concat();
@@ -292,19 +290,144 @@ mod set2 {
 
     #[test]
     fn challenge_14() {
-        println!(
-            "Oracle output {:?}",
-            challenge_14_oracle("alskdfjasd".as_bytes())
-        );
+        let num_blocks = 144 / BLOCK_SIZE;
+        println!("Number blocks to decrypt: {:?}", num_blocks);
+
+        let mut known_bytes: Vec<u8> = Vec::new();
+        // For each block:
+        // Same as challenge 12, but we prepend a string to make sure the prefix is a fixed block length
+
+        // First we want to know the ciphertext corresponding to plain text "BBBBBBBBBBBBBBBB" (16 B's)
+        let block_size_check_output = challenge_14_oracle(
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB".as_bytes(),
+        ); //56 B's
+        let num_blocks = block_size_check_output.len() / 16;
+        let mut b_cipher_text: &[u8] = &[];
+        let mut b_cipher_block_index: usize = 0;
+        for i in 0..(num_blocks - 1) {
+            if &block_size_check_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
+                == &block_size_check_output[(i + 1) * BLOCK_SIZE..(i + 2) * BLOCK_SIZE]
+            {
+                b_cipher_text = &block_size_check_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE];
+                b_cipher_block_index = i;
+                break;
+            }
+        }
+        if b_cipher_text.len() == 0 {
+            panic!("Could not determine B's cipher text")
+        } else {
+            println!("Found B cipher text {:?}", b_cipher_text);
+            println!("Cipher text located at block {:?}", b_cipher_block_index);
+        }
+
+        // Next we want to find the minimal number of b's that will produce an output with the b_cipher text.
+        // For this minimal number, we will know that the next byte starts with whatever we append to the b's.
+        let mut min_num_b: usize = 0;
+        for num_b in 1..=56 {
+            let bs: Vec<u8> = (0..num_b).map(|_| 'B' as u8).collect();
+            let cipher_text = challenge_14_oracle(&bs); //56 B's
+            if b_cipher_text
+                == &cipher_text
+                    [b_cipher_block_index * BLOCK_SIZE..(b_cipher_block_index + 1) * BLOCK_SIZE]
+            {
+                min_num_b = num_b;
+                break;
+            }
+        }
+
+        if min_num_b < 16 || min_num_b >= 32 {
+            panic!("Found impossible min num B value of {:?}", min_num_b);
+        } else {
+            println!(
+                "Found minimal B length of {:?} to produce B cipher block",
+                min_num_b
+            );
+        }
+
+        // Now we proceed as in challenge 12, except we prepend the minimal B block
+        // to the input and we analyze starting after the B cipher text block
+
+        // One byte short output
+        // A*15,A*14,...A*1,A*0
+        // test string
+        // A*15 + guessed byte
+        // A*14P1 + guessed byte
+        // A*13P1-P2 + guessed byte
+        // A*0P1-P15+guessed byte
+        // last 15 known plain text characters
+
+        let min_b_block: Vec<u8> = (0..min_num_b).map(|_| 'B' as u8).collect();
+        let attack_block_index = b_cipher_block_index + 1;
+        for block_index in attack_block_index..(num_blocks + attack_block_index) {
+            for byte_index in 0..BLOCK_SIZE {
+                let prefix: Vec<u8> = (0..(BLOCK_SIZE - byte_index - 1))
+                    .map(|_| 'A' as u8)
+                    .collect();
+
+                let one_byte_short_output =
+                    &challenge_14_oracle(&[&min_b_block[..], &prefix[..]].concat());
+                assert_eq!(
+                    &one_byte_short_output[b_cipher_block_index * BLOCK_SIZE
+                        ..(b_cipher_block_index + 1) * BLOCK_SIZE],
+                    b_cipher_text
+                );
+                if one_byte_short_output.len() <= (block_index + 1) * BLOCK_SIZE {
+                    println!("Reached end of message. Decrypted message is:");
+                    println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
+                    return;
+                }
+                let one_byte_short_block = &one_byte_short_output
+                    [block_index * BLOCK_SIZE..(block_index + 1) * BLOCK_SIZE];
+
+                for possible_byte in 0..=255 {
+                    let concatenated = if block_index == attack_block_index {
+                        [
+                            &min_b_block[..],
+                            &prefix[..],
+                            &known_bytes[..],
+                            &[possible_byte],
+                        ]
+                        .concat()
+                    } else {
+                        [
+                            &min_b_block[..],
+                            &known_bytes[known_bytes.len() - BLOCK_SIZE + 1..],
+                            &[possible_byte],
+                        ]
+                        .concat()
+                    };
+                    let guess_output = &challenge_14_oracle(&concatenated);
+                    assert_eq!(
+                        &guess_output[b_cipher_block_index * BLOCK_SIZE
+                            ..(b_cipher_block_index + 1) * BLOCK_SIZE],
+                        b_cipher_text
+                    );
+                    let guess_block = &guess_output
+                        [attack_block_index * BLOCK_SIZE..(attack_block_index + 1) * BLOCK_SIZE];
+                    if guess_block == one_byte_short_block {
+                        known_bytes.push(possible_byte);
+                        break;
+                    }
+                }
+            }
+        }
+        println!("Decrypted message");
+        println!("{:?}", str::from_utf8(known_bytes.as_slice()).unwrap());
     }
 
     fn challenge_14_oracle(input: &[u8]) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
-        let prefix: Vec<u8> = (0..rng.gen_range(1..16)).map(|_| rng.gen::<u8>()).collect();
-        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0BCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0C3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
+        lazy_static! {
+            static ref PREFIX: Vec<u8> = {
+                let mut rng = rand::thread_rng();
+                (0..rng.gen_range(100..200))
+                    .map(|_| rng.gen::<u8>())
+                    .collect()
+            };
+        }
+        let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
         let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
-        let concatenated = [&prefix, input, &unknown_string[..]].concat();
+        let concatenated = [&PREFIX, input, &unknown_string[..]].concat();
         let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
         let update_usize = crypto.update(&concatenated, output.as_mut_slice()).unwrap();
         let finalize_usize = crypto.finalize(&mut output[update_usize..]).unwrap();
