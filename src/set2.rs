@@ -20,6 +20,9 @@ mod set2 {
     lazy_static! {
         static ref KEY: Vec<u8> = random_aes_key();
     }
+    lazy_static! {
+        static ref IV: Vec<u8> = random_aes_key();
+    }
 
     fn pkcs7_padding(input: &mut Vec<u8>, block_length: usize) {
         let remainder = block_length - (input.len() % block_length);
@@ -548,6 +551,29 @@ mod set2 {
             }),
             validate_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes())
         );
+    }
+
+    fn challenge_16_oracle(input: &str) -> Vec<u8> {
+        let prefix = "comment1=cooking%20MCs;userdata=";
+        let postfix = ";comment2=%20like%20a%20pound%20of%20bacon";
+        let unquoted_string = [prefix, input, postfix].concat().to_owned();
+        let quoted_string = unquoted_string
+            .replace("\\", "\\\\")
+            .replace(";", "\\;")
+            .replace("=", "\\=");
+        let mut plaintext_bytes: Vec<u8> = quoted_string.as_bytes().to_vec();
+        pkcs7_padding(&mut plaintext_bytes, BLOCK_SIZE);
+        assert_eq!(plaintext_bytes.len() % BLOCK_SIZE, 0);
+        let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, IV.clone());
+        let mut output: Vec<u8> = vec![0u8; plaintext_bytes.len() + BLOCK_SIZE];
+        cbc.update(&plaintext_bytes, &mut output);
+        output[..plaintext_bytes.len()].to_vec()
+    }
+
+    #[test]
+    fn challenge_16() {
+        println!("{:?}", ["asdf", "bwer"].concat());
+        challenge_16_oracle("asldkjf");
     }
 
     // Escape character algorithm
