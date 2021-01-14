@@ -7,12 +7,14 @@ mod set2 {
     use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
     use openssl::symm;
+    use rand::distributions::Alphanumeric;
     use rand::Rng;
     use serde::{Deserialize, Serialize};
     use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
     use std::fmt;
     use std::fs;
+    use std::iter;
     use std::str;
 
     const BLOCK_SIZE: usize = 16;
@@ -477,7 +479,7 @@ mod set2 {
         }
     }
 
-    fn validate_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
+    fn remove_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
         if input.len() % BLOCK_SIZE != 0 {
             return Err(PaddingError {
                 data: PaddingErrorData::BadLength(input.len()),
@@ -505,63 +507,63 @@ mod set2 {
     fn challenge_15() {
         assert_eq!(
             "012345678901234".as_bytes(),
-            validate_padding("012345678901234\x01".as_bytes()).unwrap()
+            remove_padding("012345678901234\x01".as_bytes()).unwrap()
         );
         assert_eq!(
             "0\x012345678901234".as_bytes(),
-            validate_padding("0\x012345678901234\x01".as_bytes()).unwrap()
+            remove_padding("0\x012345678901234\x01".as_bytes()).unwrap()
         );
         assert_eq!(
             "01234567890123".as_bytes(),
-            validate_padding("01234567890123\x02\x02".as_bytes()).unwrap()
+            remove_padding("01234567890123\x02\x02".as_bytes()).unwrap()
         );
         assert_eq!(
             "0123456789012".as_bytes(),
-            validate_padding("0123456789012\x03\x03\x03".as_bytes()).unwrap()
+            remove_padding("0123456789012\x03\x03\x03".as_bytes()).unwrap()
         );
         assert_eq!(
             Err(PaddingError {
                 data: PaddingErrorData::BadEnd(53, 1)
             }),
-            validate_padding("0123456789012345".as_bytes())
+            remove_padding("0123456789012345".as_bytes())
         );
         assert_eq!(
             "0123456789012\x02".as_bytes(),
-            validate_padding("0123456789012\x02\x02\x02".as_bytes()).unwrap()
+            remove_padding("0123456789012\x02\x02\x02".as_bytes()).unwrap()
         );
         assert_eq!(
             Err(PaddingError {
                 data: PaddingErrorData::BadLength(15)
             }),
-            validate_padding("0123456789012\x02\x02".as_bytes())
+            remove_padding("0123456789012\x02\x02".as_bytes())
         );
         assert_eq!(
             "ICE ICE BABY".as_bytes(),
-            validate_padding("ICE ICE BABY\x04\x04\x04\x04".as_bytes()).unwrap()
+            remove_padding("ICE ICE BABY\x04\x04\x04\x04".as_bytes()).unwrap()
         );
         assert_eq!(
             Err(PaddingError {
                 data: PaddingErrorData::BadEnd(5, 4)
             }),
-            validate_padding("ICE ICE BABY\x05\x05\x05\x05".as_bytes())
+            remove_padding("ICE ICE BABY\x05\x05\x05\x05".as_bytes())
         );
         assert_eq!(
             Err(PaddingError {
                 data: PaddingErrorData::BadEnd(4, 1)
             }),
-            validate_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes())
+            remove_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes())
         );
     }
 
     fn challenge_16_oracle(input: &str) -> Vec<u8> {
         let prefix = "comment1=cooking%20MCs;userdata=";
         let postfix = ";comment2=%20like%20a%20pound%20of%20bacon";
-        let unquoted_string = [prefix, input, postfix].concat().to_owned();
-        let quoted_string = unquoted_string
+        let input = input
             .replace("\\", "\\\\")
             .replace(";", "\\;")
             .replace("=", "\\=");
-        let mut plaintext_bytes: Vec<u8> = quoted_string.as_bytes().to_vec();
+        let plaintext = [prefix, &input, postfix].concat().to_owned();
+        let mut plaintext_bytes: Vec<u8> = plaintext.as_bytes().to_vec();
         pkcs7_padding(&mut plaintext_bytes, BLOCK_SIZE);
         assert_eq!(plaintext_bytes.len() % BLOCK_SIZE, 0);
         let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, IV.clone());
@@ -570,10 +572,76 @@ mod set2 {
         output[..plaintext_bytes.len()].to_vec()
     }
 
+    fn challenge_16_decrypt(input: &[u8]) -> Result<String, std::str::Utf8Error> {
+        let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Decrypt, IV.clone());
+        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        cbc.update(input, &mut output).unwrap();
+        // Remove last block of output which contains the extra block in case of required padding, which we know is not needed.
+        let stripped_output = remove_padding(&output[..input.len()]).unwrap();
+        Ok(str::from_utf8(stripped_output)?.to_owned())
+    }
+
+    fn challenge_16_is_admin(input: &str) -> bool {
+        match input.find(";admin=true;") {
+            Some(_) => true,
+            None => false,
+        }
+    }
+
     #[test]
-    fn challenge_16() {
-        println!("{:?}", ["asdf", "bwer"].concat());
-        challenge_16_oracle("asldkjf");
+    fn test_challenge_16_round_trip() {
+        let encrypted = challenge_16_oracle("Hello");
+        let decrypted = challenge_16_decrypt(&encrypted).unwrap();
+        assert_eq!(
+            "comment1=cooking%20MCs;userdata=Hello;comment2=%20like%20a%20pound%20of%20bacon",
+            decrypted
+        );
+
+        let encrypted = challenge_16_oracle("Hello;admin=true");
+        let decrypted = challenge_16_decrypt(&encrypted).unwrap();
+        assert_eq!(
+            "comment1=cooking%20MCs;userdata=Hello\\;admin\\=true;comment2=%20like%20a%20pound%20of%20bacon",
+            decrypted
+        );
+        assert_eq!(challenge_16_is_admin(&decrypted), false);
+    }
+
+    #[test]
+    fn challenge_16_foo() {
+        // Observation: We can flip any bits we like in one plain text block by flipping the corresponding
+        // bits in an upstream block.
+        // Observation: The string ;admin=true; fits inside a single 16 bit block.
+        // We can add a block to user data that we can corrupt without corrupting the entire string.
+        // The full plain text string will be
+        // "comment1=cooking%20MCs;userdata=1234567890123456:admin<true;comment2=%20like%20a%20pound%20of%20bacon"
+        // ':' has ASCII code 3B. Flipping the last bit transforms it to ASCII code 3A, i.e. ';'
+        // '<' has ASCII code 3C. Flipping the last bit transforms it to ASCII code 3D, i.e. '='
+        // The corrupted data is often not UTF-8. We'll have to try random blocks until we get something
+        // that transforms to valid UTF-8 under the changes.
+
+        let mut rng = rand::thread_rng();
+        for i in 0..100000 {
+            let random_string: String = iter::repeat(())
+                .map(|()| rng.sample(Alphanumeric))
+                .map(char::from)
+                .take(16)
+                .collect();
+            let input = [&random_string, ":admin<true"].concat();
+            let mut encrypted = challenge_16_oracle(&input);
+            // We should flip the last bit of byte 49-16=33 and 55-16=39 of ciphertext before decrypting
+            encrypted[32] = encrypted[32] ^ 1u8;
+            encrypted[38] = encrypted[38] ^ 1u8;
+            let decrypted = challenge_16_decrypt(&encrypted);
+            match decrypted {
+                Ok(value) => {
+                    println!("Success on iteration {:?} with input {:?}", i, input);
+                    println!("Decryption of modified ciphertext: {:?}", value);
+                    return;
+                }
+                Err(_) => {}
+            }
+        }
+        println!("Could not decrypt to valid UTF-8 after 100000 tries");
     }
 
     // Escape character algorithm

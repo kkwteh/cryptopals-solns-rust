@@ -133,15 +133,6 @@ pub mod kev_crypto {
                         } else {
                             chain_block = &input[(i - 1) * BLOCK_SIZE..i * BLOCK_SIZE];
                         }
-                        println!(
-                            "input block {:?}",
-                            &input[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
-                        );
-                        println!(
-                            "pre_xor_output {:?}",
-                            &pre_xor_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE]
-                        );
-                        println!("chain_block {:?}", &chain_block);
                         let next_output_block = xor_bytes(
                             &pre_xor_output[i * BLOCK_SIZE..(i + 1) * BLOCK_SIZE],
                             chain_block,
