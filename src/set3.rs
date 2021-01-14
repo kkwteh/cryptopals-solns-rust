@@ -147,12 +147,9 @@ mod set3 {
             "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==",
         )
         .unwrap();
-        println!("input {:?}", input);
-        println!("input length: {:?}", input.len());
         let mut ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
         let mut output: Vec<u8> = vec![0u8; input.len()];
         ctr.update(&input, &mut output).unwrap();
-        println!("Decrypted output: {:?}", output);
         println!("Decrypted string: {:?}", str::from_utf8(&output).unwrap());
     }
 }

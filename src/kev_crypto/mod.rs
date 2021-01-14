@@ -295,7 +295,6 @@ pub mod kev_crypto {
             let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
             let update_usize = self.ecb.update(&ctr_input, &mut ctr_output).unwrap();
             self.ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
-
             let xor = xor_bytes(&ctr_output[..input.len()], input);
             output[..input.len()].copy_from_slice(&xor);
             return Ok(xor.len());
