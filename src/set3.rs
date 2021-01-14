@@ -50,7 +50,7 @@ mod set3 {
         result
     }
 
-    fn padding_oracle_attack_block(cipher_block: &[u8], chain_block: &[u8]) -> Vec<u8> {
+    fn padding_oracle_attack_block(cipher_block: &[u8], chain_block: &[u8]) -> Option<Vec<u8>> {
         // to break the encryption we decrypt two blocks. A random block, and the desired cipher text block
         // If the two block message has valid padding when passed through decryption, we know that the
         // last byte of the plain text must be \x01.
@@ -72,7 +72,8 @@ mod set3 {
         for byte_index in 0..BLOCK_SIZE {
             let mut rng = rand::thread_rng();
             assert_eq!(known_bytes.len(), byte_index);
-            for i in 0..=10000 {
+            let max_index = 10000;
+            for i in 0..=max_index {
                 let random_bytes: Vec<u8> = (0..(BLOCK_SIZE - byte_index))
                     .map(|_| rng.gen::<u8>())
                     .collect();
@@ -84,30 +85,55 @@ mod set3 {
                 let concat = &[&random_bytes, &padding_byte_complements, cipher_block].concat();
                 let is_padding_valid = challenge_17_decrypt(&concat);
                 if is_padding_valid {
-                    println!("Valid padding found");
-                    println!("Pad value: {:?}", pad_value);
-                    println!("Random bytes length: {:?}", random_bytes.len());
                     known_bytes.push(pad_value ^ random_bytes[random_bytes.len() - 1]);
                     break;
                 }
-                if i == 100000 {
-                    println!("Random bytes len: {:?}", random_bytes.len());
-                    println!("Padding byte complements: {:?}", padding_byte_complements);
-                    println!("known bytes: {:?}", known_bytes);
-                    panic!("Could not find valid padding in 10000 tries. Are you padding byte complements correct?");
+                if i == max_index {
+                    return None;
                 }
             }
         }
         assert_eq!(known_bytes.len(), BLOCK_SIZE);
-        xor_bytes(
+        Some(xor_bytes(
             &known_bytes.into_iter().rev().collect::<Vec<u8>>(),
             chain_block,
-        )
+        ))
     }
 
     #[test]
     fn challenge_17() {
         let cipher_text = challenge_17_encrypt();
-        padding_oracle_attack_block(&cipher_text[0..16], &IV);
+        assert_eq!(cipher_text.len() % BLOCK_SIZE, 0);
+        let num_blocks = cipher_text.len() / BLOCK_SIZE;
+        for block_index in 0..num_blocks {
+            let cipher_block =
+                &cipher_text[block_index * BLOCK_SIZE..(block_index + 1) * BLOCK_SIZE];
+            let chain_block = if block_index == 0 {
+                &IV
+            } else {
+                &cipher_text[(block_index - 1) * BLOCK_SIZE..(block_index) * BLOCK_SIZE]
+            };
+            let mut plaintext_bytes_option: Option<Vec<u8>> = None;
+            // Try 10 times. There's a chance that we get unlucky and roll for example, \x02\x02
+            // as the padding instead of \x01.
+            for _ in 0..10 {
+                plaintext_bytes_option = padding_oracle_attack_block(&cipher_block, &chain_block);
+                if plaintext_bytes_option != None {
+                    break;
+                }
+            }
+            match plaintext_bytes_option {
+                Some(plaintext_bytes) => {
+                    println!(
+                        "Plain text block {:?}: {:?}",
+                        block_index,
+                        str::from_utf8(&plaintext_bytes).unwrap()
+                    );
+                }
+                None => {
+                    println!("Could not decrypt block after 10 tries.")
+                }
+            }
+        }
     }
 }
