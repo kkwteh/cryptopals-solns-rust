@@ -88,6 +88,10 @@ mod set3 {
                     known_bytes.push(pad_value ^ random_bytes[random_bytes.len() - 1]);
                     break;
                 }
+                // If we can't find a valid padding value, it means that we probably
+                // rolled an unlucky pad that is valid but not the most likely outcome
+                // as we had assumed. We just return None instead of trying to roll back
+                // and let the caller retry.
                 if i == max_index {
                     return None;
                 }

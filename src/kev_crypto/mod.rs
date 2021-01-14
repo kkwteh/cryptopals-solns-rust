@@ -4,6 +4,7 @@ pub mod kev_crypto {
     use openssl::symm::{Cipher, Crypter};
     use rand::Rng;
     use std::fmt;
+    use std::str;
 
     pub const BLOCK_SIZE: usize = 16;
     pub fn random_block() -> Vec<u8> {
@@ -18,6 +19,7 @@ pub mod kev_crypto {
     }
 
     pub fn xor_bytes<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> Vec<u8> {
+        // Note: cycles through second iter if it is shorter than the first iterator.
         slice1
             .iter()
             .zip(slice2.iter().cycle())
@@ -259,5 +261,78 @@ pub mod kev_crypto {
             }
         }
         return false;
+    }
+
+    pub struct SimpleCtr {
+        ecb: SimpleEcb,
+        nonce: Vec<u8>,
+        counter: u64,
+    }
+
+    impl SimpleCtr {
+        pub fn new(key: &[u8], nonce: Vec<u8>) -> SimpleCtr {
+            SimpleCtr {
+                ecb: SimpleEcb::new(&key, symm::Mode::Encrypt),
+                nonce: nonce,
+                counter: 0,
+            }
+        }
+    }
+
+    impl Crypto for SimpleCtr {
+        // Wikipedia explanation https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)
+        fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+            let num_blocks = (input.len() / BLOCK_SIZE) + 1;
+            let mut ctr_input: Vec<u8> = vec![0u8; num_blocks * BLOCK_SIZE];
+            for block_index in 0..num_blocks {
+                &ctr_input[block_index * BLOCK_SIZE..block_index * BLOCK_SIZE + 8]
+                    .copy_from_slice(&self.nonce);
+                let le_bytes = self.counter.to_le_bytes();
+                &ctr_input[block_index * BLOCK_SIZE..block_index * BLOCK_SIZE + 8]
+                    .copy_from_slice(&le_bytes);
+                self.counter += 1;
+            }
+            let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
+            self.ecb.update(&ctr_input, &mut ctr_output).unwrap();
+            let xor = xor_bytes(&ctr_output[..input.len()], input);
+            output[..input.len()].copy_from_slice(&xor);
+            return Ok(xor.len());
+        }
+
+        fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
+            // Don't use this.
+            return Ok(0);
+        }
+    }
+
+    #[test]
+    fn test_simple_ctr() {
+        let mut ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
+        let input = "Hello world!".as_bytes();
+        let mut encrypted: Vec<u8> = vec![0u8; input.len()];
+        ctr.update(input, &mut encrypted).unwrap();
+        println!("Encrypted bytes: {:?}", encrypted);
+        ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
+        let mut decrypted: Vec<u8> = vec![0u8; input.len()];
+        ctr.update(&encrypted, &mut decrypted).unwrap();
+        println!(
+            "Decrypted string: {:?}",
+            str::from_utf8(&decrypted).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_little_endian_bytes() {
+        let foo: u64 = 256;
+        let foo_bytes = foo.to_le_bytes();
+        println!("bytes {:?}", foo_bytes);
+    }
+
+    #[test]
+    fn test_xor_bytes_different_lengths() {
+        let foo: Vec<u8> = vec![1, 1, 1, 1, 1];
+        let bar: Vec<u8> = vec![1, 1, 1, 1, 1, 1, 1];
+        let result = xor_bytes(&foo, &bar);
+        assert_eq!(result, vec![0, 0, 0, 0, 0]);
     }
 }
