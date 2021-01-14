@@ -1,7 +1,7 @@
 mod set3 {
     use crate::kev_crypto::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, xor_bytes, Crypto, PaddingError,
-        PaddingErrorData, SimpleCbc, BLOCK_SIZE,
+        PaddingErrorData, SimpleCbc, SimpleCtr, BLOCK_SIZE,
     };
     use lazy_static::lazy_static;
     use openssl::symm;
@@ -139,5 +139,20 @@ mod set3 {
                 }
             }
         }
+    }
+
+    #[test]
+    fn challenge_18() {
+        let input: Vec<u8> = base64::decode(
+            "L77na/nrFsKvynd6HzOoG7GHTLXsTVu9qvY/2syLXzhPweyyMTJULu/6/kXX0KSvoOLSFQ==",
+        )
+        .unwrap();
+        println!("input {:?}", input);
+        println!("input length: {:?}", input.len());
+        let mut ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
+        let mut output: Vec<u8> = vec![0u8; input.len()];
+        ctr.update(&input, &mut output).unwrap();
+        println!("Decrypted output: {:?}", output);
+        println!("Decrypted string: {:?}", str::from_utf8(&output).unwrap());
     }
 }

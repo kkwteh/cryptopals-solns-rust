@@ -285,15 +285,17 @@ pub mod kev_crypto {
             let num_blocks = (input.len() / BLOCK_SIZE) + 1;
             let mut ctr_input: Vec<u8> = vec![0u8; num_blocks * BLOCK_SIZE];
             for block_index in 0..num_blocks {
-                &ctr_input[block_index * BLOCK_SIZE..block_index * BLOCK_SIZE + 8]
+                &ctr_input[block_index * BLOCK_SIZE..(block_index * BLOCK_SIZE + 8)]
                     .copy_from_slice(&self.nonce);
                 let le_bytes = self.counter.to_le_bytes();
-                &ctr_input[block_index * BLOCK_SIZE..block_index * BLOCK_SIZE + 8]
+                &ctr_input[(block_index * BLOCK_SIZE + 8)..(block_index * BLOCK_SIZE + 16)]
                     .copy_from_slice(&le_bytes);
                 self.counter += 1;
             }
             let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
-            self.ecb.update(&ctr_input, &mut ctr_output).unwrap();
+            let update_usize = self.ecb.update(&ctr_input, &mut ctr_output).unwrap();
+            self.ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
+
             let xor = xor_bytes(&ctr_output[..input.len()], input);
             output[..input.len()].copy_from_slice(&xor);
             return Ok(xor.len());
