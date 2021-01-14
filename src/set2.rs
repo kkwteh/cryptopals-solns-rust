@@ -1,8 +1,8 @@
 #[allow(dead_code, unused_imports)]
 mod set2 {
     use crate::kev_crypto::kev_crypto::{
-        detect_ecb, hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto, SimpleCbc,
-        SimpleEcb,
+        detect_ecb, hamming_distance, hex_string, is_ascii_character, pkcs7_padding,
+        remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData, SimpleCbc, SimpleEcb,
     };
     use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
@@ -24,13 +24,6 @@ mod set2 {
     }
     lazy_static! {
         static ref IV: Vec<u8> = random_aes_key();
-    }
-
-    fn pkcs7_padding(input: &mut Vec<u8>, block_length: usize) {
-        let remainder = block_length - (input.len() % block_length);
-        for _ in 0..remainder {
-            input.push(remainder as u8);
-        }
     }
 
     #[test]
@@ -443,67 +436,6 @@ mod set2 {
         let finalize_usize = crypto.finalize(&mut output[update_usize..]).unwrap();
         let result: Vec<u8> = output.drain(..(update_usize + finalize_usize)).collect();
         return result;
-    }
-
-    #[derive(Debug, Eq, PartialEq)]
-    enum PaddingErrorData {
-        BadEnd(u8, usize),
-        BadLength(usize),
-    }
-    #[derive(Debug, Eq, PartialEq)]
-    struct PaddingError {
-        data: PaddingErrorData,
-    }
-
-    impl fmt::Display for PaddingError {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            match self.data {
-                PaddingErrorData::BadEnd(last_byte, trailing_copies) => {
-                    write!(
-                        f,
-                        "{}",
-                        &format!(
-                            "Invalid padding. Last byte {} does not match number of trailing copies {}",
-                            last_byte, trailing_copies
-                        )
-                    )
-                }
-                PaddingErrorData::BadLength(length) => {
-                    write!(
-                        f,
-                        "{}",
-                        &format!(
-                            "Invalid padded string. Input length {} is not a multiple of 16",
-                            length
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    fn remove_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
-        if input.len() % BLOCK_SIZE != 0 {
-            return Err(PaddingError {
-                data: PaddingErrorData::BadLength(input.len()),
-            });
-        }
-        let last_byte = input[input.len() - 1];
-        let mut trailing_copies = 0;
-        for byte in input.iter().rev() {
-            if *byte == last_byte {
-                trailing_copies += 1;
-            } else {
-                break;
-            }
-        }
-        if trailing_copies as u8 >= last_byte {
-            Ok(&input[..(input.len() - (last_byte as usize))])
-        } else {
-            Err(PaddingError {
-                data: PaddingErrorData::BadEnd(last_byte, trailing_copies),
-            })
-        }
     }
 
     #[test]

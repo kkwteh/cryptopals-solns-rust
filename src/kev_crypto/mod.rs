@@ -2,6 +2,7 @@ pub mod kev_crypto {
     use openssl::error::ErrorStack;
     use openssl::symm;
     use openssl::symm::{Cipher, Crypter};
+    use std::fmt;
 
     const BLOCK_SIZE: usize = 16;
     pub fn hex_string<'a>(input: &'a [u8]) -> String {
@@ -17,6 +18,72 @@ pub mod kev_crypto {
             .zip(slice2.iter().cycle())
             .map(|(&x1, &x2)| x1 ^ x2)
             .collect::<Vec<u8>>()
+    }
+    #[derive(Debug, Eq, PartialEq)]
+    pub enum PaddingErrorData {
+        BadEnd(u8, usize),
+        BadLength(usize),
+    }
+    #[derive(Debug, Eq, PartialEq)]
+    pub struct PaddingError {
+        pub data: PaddingErrorData,
+    }
+
+    impl fmt::Display for PaddingError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self.data {
+                PaddingErrorData::BadEnd(last_byte, trailing_copies) => {
+                    write!(
+                        f,
+                        "{}",
+                        &format!(
+                            "Invalid padding. Last byte {} does not match number of trailing copies {}",
+                            last_byte, trailing_copies
+                        )
+                    )
+                }
+                PaddingErrorData::BadLength(length) => {
+                    write!(
+                        f,
+                        "{}",
+                        &format!(
+                            "Invalid padded string. Input length {} is not a multiple of 16",
+                            length
+                        )
+                    )
+                }
+            }
+        }
+    }
+    pub fn pkcs7_padding(input: &mut Vec<u8>, block_length: usize) {
+        let remainder = block_length - (input.len() % block_length);
+        for _ in 0..remainder {
+            input.push(remainder as u8);
+        }
+    }
+
+    pub fn remove_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
+        if input.len() % BLOCK_SIZE != 0 {
+            return Err(PaddingError {
+                data: PaddingErrorData::BadLength(input.len()),
+            });
+        }
+        let last_byte = input[input.len() - 1];
+        let mut trailing_copies = 0;
+        for byte in input.iter().rev() {
+            if *byte == last_byte {
+                trailing_copies += 1;
+            } else {
+                break;
+            }
+        }
+        if trailing_copies as u8 >= last_byte {
+            Ok(&input[..(input.len() - (last_byte as usize))])
+        } else {
+            Err(PaddingError {
+                data: PaddingErrorData::BadEnd(last_byte, trailing_copies),
+            })
+        }
     }
     pub fn is_ascii_character(value: &u8) -> bool {
         return (*value >= 32 && *value <= 126) || *value == 10 || *value == 13;
