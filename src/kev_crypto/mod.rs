@@ -2,9 +2,14 @@ pub mod kev_crypto {
     use openssl::error::ErrorStack;
     use openssl::symm;
     use openssl::symm::{Cipher, Crypter};
+    use rand::Rng;
     use std::fmt;
 
-    const BLOCK_SIZE: usize = 16;
+    pub const BLOCK_SIZE: usize = 16;
+    pub fn random_aes_key() -> Vec<u8> {
+        let mut rng = rand::thread_rng();
+        (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
+    }
     pub fn hex_string<'a>(input: &'a [u8]) -> String {
         input
             .iter()

@@ -2,7 +2,8 @@
 mod set2 {
     use crate::kev_crypto::kev_crypto::{
         detect_ecb, hamming_distance, hex_string, is_ascii_character, pkcs7_padding,
-        remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData, SimpleCbc, SimpleEcb,
+        random_aes_key, remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData,
+        SimpleCbc, SimpleEcb,
     };
     use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
@@ -188,11 +189,6 @@ mod set2 {
         let finalize_usize = crypto.finalize(&mut output[update_usize..]).unwrap();
         let result: Vec<u8> = output.drain(..(update_usize + finalize_usize)).collect();
         result
-    }
-
-    fn random_aes_key() -> Vec<u8> {
-        let mut rng = rand::thread_rng();
-        (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
     }
 
     #[derive(Serialize, Deserialize, Debug)]
