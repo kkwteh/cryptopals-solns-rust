@@ -574,13 +574,4 @@ mod set2 {
         }
         println!("Could not decrypt to valid UTF-8 after 100000 tries");
     }
-
-    // Escape character algorithm
-    //     // encoding
-    // text.replace(escape, escape + escape);
-    // text.replace(delim , escape + delim);
-
-    // // decoding
-    // text.replace(escape + delim , delim);
-    // text.replace(escape + escape, escape);
 }
