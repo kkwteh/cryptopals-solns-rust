@@ -1,7 +1,7 @@
 mod set3 {
     use crate::kev_crypto::kev_crypto::{
-        pkcs7_padding, random_aes_key, remove_padding, Crypto, PaddingError, PaddingErrorData,
-        SimpleCbc, BLOCK_SIZE,
+        pkcs7_padding, random_block, remove_padding, xor_bytes, Crypto, PaddingError,
+        PaddingErrorData, SimpleCbc, BLOCK_SIZE,
     };
     use lazy_static::lazy_static;
     use openssl::symm;
@@ -9,10 +9,10 @@ mod set3 {
     use rand::Rng;
     use std::str;
     lazy_static! {
-        static ref KEY: Vec<u8> = random_aes_key();
+        static ref KEY: Vec<u8> = random_block();
     }
     lazy_static! {
-        static ref IV: Vec<u8> = random_aes_key();
+        static ref IV: Vec<u8> = random_block();
     }
     fn challenge_17_encrypt() -> Vec<u8> {
         let inputs = vec![
@@ -29,7 +29,7 @@ mod set3 {
         ];
         let mut rng = rand::thread_rng();
         let rand_index = rng.gen_range(0..inputs.len());
-        let mut input = inputs[rand_index].as_bytes().to_vec();
+        let mut input: Vec<u8> = base64::decode(inputs[rand_index]).unwrap();
         pkcs7_padding(&mut input, BLOCK_SIZE);
         let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, IV.clone());
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
@@ -50,10 +50,64 @@ mod set3 {
         result
     }
 
+    fn padding_oracle_attack_block(cipher_block: &[u8], chain_block: &[u8]) -> Vec<u8> {
+        // to break the encryption we decrypt two blocks. A random block, and the desired cipher text block
+        // If the two block message has valid padding when passed through decryption, we know that the
+        // last byte of the plain text must be \x01.
+        // Therefore for the last byte, \x01 = random_block ^ cipher_text_decryption
+        // cipher_text_decryption = \x01 ^ random_block
+        // To get the second to last byte we set the last byte of the first block so that when xored with
+        // last byte of the cipher text decryption gives \x02. The rest of the first block is set randomly.
+        // last byte of first_block xor last byte of cipher text decyption = \x02
+        // Now if the padding is valid, we know that the second to last byte of the corresponding plain text
+        // must be \x02.
+        // Therefore for the second to last byte, \cipher_text_decryption = first_block ^ \x02
+        // Once we have the decryption of the ciphertext, we still need to XOR with the chain block to
+        // recover the plain text.
+
+        // known_bytes accumulate in reverse order (the right-most byte is pushed first)
+
+        // TODO able to find the first byte, but not the second
+        let mut known_bytes: Vec<u8> = Vec::new();
+        for byte_index in 0..BLOCK_SIZE {
+            let mut rng = rand::thread_rng();
+            assert_eq!(known_bytes.len(), byte_index);
+            for i in 0..=10000 {
+                let random_bytes: Vec<u8> = (0..(BLOCK_SIZE - byte_index))
+                    .map(|_| rng.gen::<u8>())
+                    .collect();
+                let pad_value = (byte_index + 1) as u8;
+                let mut padding_byte_complements: Vec<u8> = Vec::new();
+                for known_byte in known_bytes.iter().rev() {
+                    padding_byte_complements.push(pad_value ^ known_byte);
+                }
+                let concat = &[&random_bytes, &padding_byte_complements, cipher_block].concat();
+                let is_padding_valid = challenge_17_decrypt(&concat);
+                if is_padding_valid {
+                    println!("Valid padding found");
+                    println!("Pad value: {:?}", pad_value);
+                    println!("Random bytes length: {:?}", random_bytes.len());
+                    known_bytes.push(pad_value ^ random_bytes[random_bytes.len() - 1]);
+                    break;
+                }
+                if i == 100000 {
+                    println!("Random bytes len: {:?}", random_bytes.len());
+                    println!("Padding byte complements: {:?}", padding_byte_complements);
+                    println!("known bytes: {:?}", known_bytes);
+                    panic!("Could not find valid padding in 10000 tries. Are you padding byte complements correct?");
+                }
+            }
+        }
+        assert_eq!(known_bytes.len(), BLOCK_SIZE);
+        xor_bytes(
+            &known_bytes.into_iter().rev().collect::<Vec<u8>>(),
+            chain_block,
+        )
+    }
+
     #[test]
-    fn test_challenge_17_round_trip() {
-        let encrypted = challenge_17_encrypt();
-        let is_padding_valid = challenge_17_decrypt(&encrypted);
-        assert_eq!(true, is_padding_valid);
+    fn challenge_17() {
+        let cipher_text = challenge_17_encrypt();
+        padding_oracle_attack_block(&cipher_text[0..16], &IV);
     }
 }

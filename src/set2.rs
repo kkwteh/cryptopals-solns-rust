@@ -1,9 +1,8 @@
 #[allow(dead_code, unused_imports)]
 mod set2 {
     use crate::kev_crypto::kev_crypto::{
-        detect_ecb, hamming_distance, hex_string, is_ascii_character, pkcs7_padding,
-        random_aes_key, remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData,
-        SimpleCbc, SimpleEcb,
+        detect_ecb, hamming_distance, hex_string, is_ascii_character, pkcs7_padding, random_block,
+        remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData, SimpleCbc, SimpleEcb,
     };
     use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
@@ -21,10 +20,10 @@ mod set2 {
     const BLOCK_SIZE: usize = 16;
 
     lazy_static! {
-        static ref KEY: Vec<u8> = random_aes_key();
+        static ref KEY: Vec<u8> = random_block();
     }
     lazy_static! {
-        static ref IV: Vec<u8> = random_aes_key();
+        static ref IV: Vec<u8> = random_block();
     }
 
     #[test]
@@ -77,7 +76,7 @@ mod set2 {
         }
         "Analyzing CBC Output";
         for _ in 0..10 {
-            let iv = random_aes_key();
+            let iv = random_block();
             let mut crypto: Box<dyn Crypto> =
                 Box::new(SimpleCbc::new(&KEY, symm::Mode::Encrypt, iv));
             let output = encryption_oracle(&input, crypto);

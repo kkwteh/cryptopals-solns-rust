@@ -6,7 +6,7 @@ pub mod kev_crypto {
     use std::fmt;
 
     pub const BLOCK_SIZE: usize = 16;
-    pub fn random_aes_key() -> Vec<u8> {
+    pub fn random_block() -> Vec<u8> {
         let mut rng = rand::thread_rng();
         (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
     }
