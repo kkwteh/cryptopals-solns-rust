@@ -274,11 +274,11 @@ mod set2 {
         // To create a cipher text where the last plaintext block is "user\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C\x0C", we could use for example
         // email=abc@gmail.com&uid=10&role=user
 
-        // Simulate user input "bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com"
+        // user input "bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com"
         let admin_with_padding =
             "email=bbbbbbbbbbadmin\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B\x0B@bar.com&uid=10&role=user";
         let encrypted_admin_with_padding = encrypt_profile(admin_with_padding);
-        // Simulate user input "abc@gmail.com"
+        // user input "abc@gmail.com"
         let last_block_user = "email=abc@gmail.com&uid=10&role=user";
         let encrypted_last_block_user = encrypt_profile(last_block_user);
         // Cracked encryption!
@@ -288,7 +288,7 @@ mod set2 {
         ]
         .concat();
 
-        // Check against direct
+        // Check against directly encrypted string
         let admin_profile = "email=abc@gmail.com&uid=10&role=admin";
         let encrypted_admin_user = &encrypt_profile(admin_profile);
 
@@ -302,9 +302,10 @@ mod set2 {
 
         let mut known_bytes: Vec<u8> = Vec::new();
         // For each block:
-        // Same as challenge 12, but we prepend a string to make sure the prefix is a fixed block length
+        // Same as challenge 12, but we prepend a string to pad out the prefix to a whole number of blocks
 
         // First we want to know the ciphertext corresponding to plain text "BBBBBBBBBBBBBBBB" (16 B's)
+        // We throw in a lot of B's and look for the two identical adjacent blocks
         let block_size_check_output = challenge_14_oracle(
             "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB".as_bytes(),
         ); //56 B's
@@ -328,11 +329,11 @@ mod set2 {
         }
 
         // Next we want to find the minimal number of b's that will produce an output with the b_cipher text.
-        // For this minimal number, we will know that the next byte starts with whatever we append to the b's.
+        // We use the minimal B block to be sure that the B's end at a block boundary and won't mess with the following block.
         let mut min_num_b: usize = 0;
         for num_b in 1..=56 {
             let bs: Vec<u8> = (0..num_b).map(|_| 'B' as u8).collect();
-            let cipher_text = challenge_14_oracle(&bs); //56 B's
+            let cipher_text = challenge_14_oracle(&bs);
             if b_cipher_text
                 == &cipher_text
                     [b_cipher_block_index * BLOCK_SIZE..(b_cipher_block_index + 1) * BLOCK_SIZE]
@@ -342,6 +343,8 @@ mod set2 {
             }
         }
 
+        // We know that min_num_b should be between 16 and 31 because we need to fill out the
+        // last block of the random prefix and fill in one whole block.
         if min_num_b < 16 || min_num_b >= 32 {
             panic!("Found impossible min num B value of {:?}", min_num_b);
         } else {
@@ -352,7 +355,7 @@ mod set2 {
         }
 
         // Now we proceed as in challenge 12, except we prepend the minimal B block
-        // to the input and we analyze starting after the B cipher text block
+        // to the input and we analyze starting from the first block after the known B cipher text block
 
         // One byte short output
         // A*15,A*14,...A*1,A*0
@@ -607,7 +610,7 @@ mod set2 {
     }
 
     #[test]
-    fn challenge_16_foo() {
+    fn challenge_16() {
         // Observation: We can flip any bits we like in one plain text block by flipping the corresponding
         // bits in an upstream block.
         // Observation: The string ;admin=true; fits inside a single 16 bit block.
