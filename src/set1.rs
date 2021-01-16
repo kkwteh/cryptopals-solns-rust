@@ -2,7 +2,8 @@
 pub mod set1 {
 
     use crate::kev_crypto::kev_crypto::{
-        hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto, SimpleEcb,
+        best_single_char, hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto,
+        SimpleEcb,
     };
     use base64;
     use hex;
@@ -19,16 +20,6 @@ pub mod set1 {
     use std::iter;
     use std::ops::Range;
     use std::str;
-
-    lazy_static! {
-        static ref SINGLE_BYTES: Vec<u8> = {
-            let mut single_bytes: Vec<u8> = Vec::new();
-            for i in 0..=255 {
-                single_bytes.push(i as u8);
-            }
-            single_bytes
-        };
-    }
 
     #[test]
     fn challenge_1() {
@@ -48,36 +39,6 @@ pub mod set1 {
         let hex_bytes2 = hex_literal::hex!("686974207468652062756c6c277320657965");
         let result: Vec<u8> = xor_bytes(&hex_bytes1, &hex_bytes2);
         assert_eq!("746865206b696420646f6e277420706c6179", hex_string(&result))
-    }
-
-    struct SingleCharResult {
-        best_char: u8,
-        message: String,
-        stats: MessageStats,
-    }
-
-    fn best_single_char<'a>(input: &'a [u8]) -> Option<SingleCharResult> {
-        for i in SINGLE_BYTES.iter() {
-            let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
-            let candidate_message = match str::from_utf8(&candidate_bytes) {
-                Ok(value) => value,
-                Err(_error) => continue,
-            };
-            let stats = compute_stats(candidate_message);
-            // println!("Candidate message {:?}", candidate_message);
-            // println!("Message stats {:?}", stats);
-            if stats.pct_non_character < 0.001
-                && stats.pct_space > 0.07
-                && stats.pct_punctuation < 0.1
-            {
-                return Some(SingleCharResult {
-                    best_char: *i,
-                    message: candidate_message.to_owned(),
-                    stats: stats,
-                });
-            }
-        }
-        return None;
     }
 
     #[test]
@@ -184,46 +145,6 @@ pub mod set1 {
             }
         }
         best_keysize
-    }
-
-    #[derive(Debug)]
-    struct MessageStats {
-        pct_space: f64,
-        pct_punctuation: f64,
-        pct_non_character: f64,
-    }
-
-    fn compute_stats(input: &str) -> MessageStats {
-        // returns pct space, pct punctuation and pct non character
-        // which are fairly robust indicators of legitimate messages
-        let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
-            .into_iter()
-            .collect();
-        let mut num_punctuation = 0.0;
-        let mut num_non_char = 0.0;
-        let mut num_space = 0.0;
-
-        for c in input.chars() {
-            let num_value = c as u8;
-            if !is_ascii_character(&num_value) {
-                num_non_char += 1.0;
-            }
-            if c == ' ' {
-                num_space += 1.0;
-            }
-
-            if punctuation.contains(&c) {
-                num_punctuation += 1.0;
-            }
-        }
-        let pct_space = num_space / input.len() as f64;
-        let pct_punctuation = num_punctuation / input.len() as f64;
-        let pct_non_character = num_non_char / input.len() as f64;
-        MessageStats {
-            pct_space,
-            pct_punctuation,
-            pct_non_character,
-        }
     }
 
     #[test]

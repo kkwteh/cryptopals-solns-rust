@@ -1,10 +1,22 @@
 pub mod kev_crypto {
+    use lazy_static::lazy_static;
     use openssl::error::ErrorStack;
     use openssl::symm;
     use openssl::symm::{Cipher, Crypter};
     use rand::Rng;
+    use std::collections::HashSet;
     use std::fmt;
     use std::str;
+
+    lazy_static! {
+        static ref SINGLE_BYTES: Vec<u8> = {
+            let mut single_bytes: Vec<u8> = Vec::new();
+            for i in 0..=255 {
+                single_bytes.push(i as u8);
+            }
+            single_bytes
+        };
+    }
 
     pub const BLOCK_SIZE: usize = 16;
     pub fn random_block() -> Vec<u8> {
@@ -335,5 +347,77 @@ pub mod kev_crypto {
         let bar: Vec<u8> = vec![1, 1, 1, 1, 1, 1, 1];
         let result = xor_bytes(&foo, &bar);
         assert_eq!(result, vec![0, 0, 0, 0, 0]);
+    }
+
+    pub struct SingleCharResult {
+        pub best_char: u8,
+        pub message: String,
+        pub stats: MessageStats,
+    }
+
+    // TODO enable parametrization of stats qualification filter
+    // One way would be to use Box<Fn(&Fn(T) -> ())>. You can’t store a bare Fn (because that’s a trait, not a type), so you either have to use generics like F: Fn() -> () or hide Fn behind a pointer (Box or &) and use trait objects.
+    pub fn best_single_char<'a>(input: &'a [u8]) -> Option<SingleCharResult> {
+        for i in SINGLE_BYTES.iter() {
+            let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
+            let candidate_message = match str::from_utf8(&candidate_bytes) {
+                Ok(value) => value,
+                Err(_error) => continue,
+            };
+            let stats = compute_stats(candidate_message);
+            // println!("Candidate message {:?}", candidate_message);
+            // println!("Message stats {:?}", stats);
+            if stats.pct_non_character < 0.001
+                && stats.pct_space > 0.07
+                && stats.pct_punctuation < 0.1
+            {
+                return Some(SingleCharResult {
+                    best_char: *i,
+                    message: candidate_message.to_owned(),
+                    stats: stats,
+                });
+            }
+        }
+        return None;
+    }
+
+    #[derive(Debug)]
+    pub struct MessageStats {
+        pct_space: f64,
+        pct_punctuation: f64,
+        pct_non_character: f64,
+    }
+
+    pub fn compute_stats(input: &str) -> MessageStats {
+        // returns pct space, pct punctuation and pct non character
+        // which are fairly robust indicators of legitimate messages
+        let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
+            .into_iter()
+            .collect();
+        let mut num_punctuation = 0.0;
+        let mut num_non_char = 0.0;
+        let mut num_space = 0.0;
+
+        for c in input.chars() {
+            let num_value = c as u8;
+            if !is_ascii_character(&num_value) {
+                num_non_char += 1.0;
+            }
+            if c == ' ' {
+                num_space += 1.0;
+            }
+
+            if punctuation.contains(&c) {
+                num_punctuation += 1.0;
+            }
+        }
+        let pct_space = num_space / input.len() as f64;
+        let pct_punctuation = num_punctuation / input.len() as f64;
+        let pct_non_character = num_non_char / input.len() as f64;
+        MessageStats {
+            pct_space,
+            pct_punctuation,
+            pct_non_character,
+        }
     }
 }
