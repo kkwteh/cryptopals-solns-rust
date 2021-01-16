@@ -355,9 +355,13 @@ pub mod kev_crypto {
         pub stats: MessageStats,
     }
 
-    // TODO enable parametrization of stats qualification filter
-    // One way would be to use Box<Fn(&Fn(T) -> ())>. You can’t store a bare Fn (because that’s a trait, not a type), so you either have to use generics like F: Fn() -> () or hide Fn behind a pointer (Box or &) and use trait objects.
-    pub fn single_char_xor<'a>(input: &'a [u8]) -> Option<SingleCharXor> {
+    pub struct MessageCriteria {
+        pub max_pct_non_character: f64,
+        pub min_pct_space: f64,
+        pub max_pct_punctuation: f64,
+    }
+
+    pub fn single_char_xor<'a>(input: &'a [u8], crit: &MessageCriteria) -> Option<SingleCharXor> {
         for i in SINGLE_BYTES.iter() {
             let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
             let candidate_message = match str::from_utf8(&candidate_bytes) {
@@ -367,9 +371,9 @@ pub mod kev_crypto {
             let stats = compute_stats(candidate_message);
             // println!("Candidate message {:?}", candidate_message);
             // println!("Message stats {:?}", stats);
-            if stats.pct_non_character < 0.001
-                && stats.pct_space > 0.07
-                && stats.pct_punctuation < 0.1
+            if stats.pct_non_character <= crit.max_pct_non_character
+                && stats.pct_space >= crit.min_pct_space
+                && stats.pct_punctuation <= crit.max_pct_punctuation
             {
                 return Some(SingleCharXor {
                     best_char: *i,
