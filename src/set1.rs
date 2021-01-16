@@ -2,7 +2,7 @@
 pub mod set1 {
 
     use crate::kev_crypto::kev_crypto::{
-        best_single_char, hamming_distance, hex_string, is_ascii_character, xor_bytes, Crypto,
+        hamming_distance, hex_string, is_ascii_character, single_char_xor, xor_bytes, Crypto,
         SimpleEcb,
     };
     use base64;
@@ -47,7 +47,7 @@ pub mod set1 {
         let encoded_message = hex_literal::hex!(
             "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
         );
-        let single_char_result = best_single_char(&encoded_message);
+        let single_char_result = single_char_xor(&encoded_message);
         match single_char_result {
             Some(result) => {
                 println!("Best character {:?}", result.best_char as char);
@@ -66,7 +66,7 @@ pub mod set1 {
         for line in reader.lines() {
             let original_hexstring = line.unwrap();
             let input = hex::decode(original_hexstring.clone()).unwrap();
-            let single_char_result = best_single_char(&input);
+            let single_char_result = single_char_xor(&input);
             match single_char_result {
                 Some(result) => {
                     println!("Detected xor encoding for string {:?}", original_hexstring);
@@ -103,7 +103,7 @@ pub mod set1 {
 
         for i in 0..keysize {
             let transpose: Vec<u8> = input[i..].iter().step_by(keysize).cloned().collect();
-            let single_char_result = best_single_char(&transpose);
+            let single_char_result = single_char_xor(&transpose);
             match single_char_result {
                 Some(result) => {
                     keyword_chars.push(result.best_char);
