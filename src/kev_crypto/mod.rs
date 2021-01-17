@@ -26,7 +26,7 @@ pub mod kev_crypto {
     pub fn hex_string<'a>(input: &'a [u8]) -> String {
         input
             .iter()
-            .map(|&c| format!("{:01$x}", c, 2))
+            .map(|&char_| format!("{:01$x}", char_, 2))
             .collect::<String>()
     }
 
@@ -406,16 +406,16 @@ pub mod kev_crypto {
         let mut num_non_char = 0.0;
         let mut num_space = 0.0;
 
-        for c in input.chars() {
-            let num_value = c as u8;
+        for char_ in input.chars() {
+            let num_value = char_ as u8;
             if !is_ascii_character(&num_value) {
                 num_non_char += 1.0;
             }
-            if c == ' ' {
+            if char_ == ' ' {
                 num_space += 1.0;
             }
 
-            if symbol.contains(&c) {
+            if symbol.contains(&char_) {
                 num_symbol += 1.0;
             }
         }
@@ -429,7 +429,84 @@ pub mod kev_crypto {
         }
     }
 
+    // The coefficients for MT19937-64 are:[52]
+    const w: usize = 64;
+    const n: usize = 312;
+    const m: usize = 156;
+    const r: usize = 31;
+    // a = B5026F5AA96619E916
+    const a: u64 = 0xB5026F5AA96619E9u64;
+    // (u, d) = (29, 555555555555555516)
+    const u: usize = 29;
+    const d: u64 = 0x5555555555555555u64;
+    // (s, b) = (17, 71D67FFFEDA6000016)
+    const s: usize = 17;
+    const b: u64 = 0x71D67FFFEDA60000u64;
+    // (t, c) = (37, FFF7EEE00000000016)
+    const t: usize = 37;
+    const c: u64 = 0xFFF7EEE000000000u64;
+    const lower_mask: u32 = (1 << r) - 1;
+    const l: usize = 43;
     pub fn mt19937() {
         // Wikipedia description https://en.wikipedia.org/wiki/Mersenne_Twister#Algorithmic_detail
+
+        // int[0..n-1] MT
+        let mt: [u32; n] = [0; n];
+        // int index := n+1
+        let index = n + 1;
+        // const int lower_mask = (1 << r) - 1 // That is, the binary number of r 1's
+        // const int upper_mask = lowest w bits of (not lower_mask)
+        // // Initialize the generator from a seed
+        // function seed_mt(int seed) {
+        //     index := n
+        //     MT[0] := seed
+        //     for i from 1 to (n - 1) { // loop over each element
+        //         MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
+        //     }
+        // }
+        // // Extract a tempered value based on MT[index]
+        // // calling twist() every n numbers
+        // function extract_number() {
+        //     if index >= n {
+        //         if index > n {
+        //           error "Generator was never seeded"
+        //           // Alternatively, seed with constant value; 5489 is used in reference C code[53]
+        //         }
+        //         twist()
+        //     }
+        //     int y := MT[index]
+        //     y := y xor ((y >> u) and d)
+        //     y := y xor ((y << s) and b)
+        //     y := y xor ((y << t) and c)
+        //     y := y xor (y >> l)
+        //     index := index + 1
+        //     return lowest w bits of (y)
+        // }
+
+        // // Generate the next n values from the series x_i
+        // function twist() {
+        //     for i from 0 to (n-1) {
+        //         int x := (MT[i] and upper_mask)
+        //                   + (MT[(i+1) mod n] and lower_mask)
+        //         int xA := x >> 1
+        //         if (x mod 2) != 0 { // lowest bit of x is 1
+        //             xA := xA xor a
+        //         }
+        //         MT[i] := MT[(i + m) mod n] xor xA
+        //     }
+        //     index := 0
+        // }
+    }
+
+    #[test]
+    fn test_bit_shift() {
+        let foo: u32 = 12345;
+        // println!("foo << 1 = {:?}", foo << 1);
+        // println!("foo << 100 = {:?}", foo << 100);
+        // println!("foo >> 100 = {:?}", foo >> 1);
+        use std::u32;
+        let bar: u32 = u32::from_str_radix("9908B0DF", 16).unwrap();
+        println!("bar {:?}", bar);
+        println!("bar xor bar {:?}", bar ^ bar);
     }
 }
