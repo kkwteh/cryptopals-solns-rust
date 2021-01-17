@@ -373,6 +373,9 @@ pub mod kev_crypto {
                 && stats.pct_space >= crit.min_pct_space
                 && stats.pct_symbol <= crit.max_pct_symbol
             {
+                println!("Found qualifying message");
+                println!("Candidate message {:?}", candidate_message);
+                println!("Message stats {:?}", stats);
                 return Some(SingleCharXor {
                     best_char: *i,
                     message: candidate_message.to_owned(),
