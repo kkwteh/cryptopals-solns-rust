@@ -318,15 +318,7 @@ mod set3 {
         // We can get the rest of the key string by reading the initial segments and seeing which characters must necessarily follow.
         // Line 0: Starts with ?'m. (I ascii code 73)
         key_string[0] = lines[0][0] ^ 73;
-        // // Line 1 14th character bac? (k ascii code 107)
-        // key_string[14] = lines[1][14] ^ 107;
-        // // Line 1 20th character a?t?ck (t ascii code 116)
-        // key_string[20] = lines[1][20] ^ 116;
-        // // Line 1 22th character a?t?ck (a ascii code 97)
-        // key_string[22] = lines[1][22] ^ 97;
-        // // Line 0 28th character wa?ning (r ascii code 114)
-        // key_string[28] = lines[0][28] ^ 114;
-        // TODO(boring).. fill in the rest
+        // TODO(boring).. fill in the rest as in challenge 19
 
         lines
             .iter()
