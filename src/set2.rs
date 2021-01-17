@@ -270,7 +270,7 @@ mod set2 {
         let last_block_user = "email=abc@gmail.com&uid=10&role=user";
         let encrypted_last_block_user = encrypt_profile(last_block_user);
         // Cracked encryption!
-        let hacked_admin_user = [
+        let cracked_admin_user = [
             &encrypted_last_block_user[0..32],
             &encrypted_admin_with_padding[16..32],
         ]
@@ -280,7 +280,7 @@ mod set2 {
         let admin_profile = "email=abc@gmail.com&uid=10&role=admin";
         let encrypted_admin_user = &encrypt_profile(admin_profile);
 
-        assert_eq!(hacked_admin_user, &encrypted_admin_user[..]);
+        assert_eq!(cracked_admin_user, &encrypted_admin_user[..]);
     }
 
     #[test]

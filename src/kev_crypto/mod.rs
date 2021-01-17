@@ -358,7 +358,7 @@ pub mod kev_crypto {
     pub struct MessageCriteria {
         pub max_pct_non_character: f64,
         pub min_pct_space: f64,
-        pub max_pct_punctuation: f64,
+        pub max_pct_symbol: f64,
     }
 
     pub fn single_char_xor<'a>(input: &'a [u8], crit: &MessageCriteria) -> Option<SingleCharXor> {
@@ -369,12 +369,13 @@ pub mod kev_crypto {
                 Err(_error) => continue,
             };
             let stats = compute_stats(candidate_message);
-            // println!("Candidate message {:?}", candidate_message);
-            // println!("Message stats {:?}", stats);
             if stats.pct_non_character <= crit.max_pct_non_character
                 && stats.pct_space >= crit.min_pct_space
-                && stats.pct_punctuation <= crit.max_pct_punctuation
+                && stats.pct_symbol <= crit.max_pct_symbol
             {
+                println!("Found qualifying message");
+                println!("Candidate message {:?}", candidate_message);
+                println!("Message stats {:?}", stats);
                 return Some(SingleCharXor {
                     best_char: *i,
                     message: candidate_message.to_owned(),
@@ -388,17 +389,20 @@ pub mod kev_crypto {
     #[derive(Debug)]
     pub struct MessageStats {
         pct_space: f64,
-        pct_punctuation: f64,
+        pct_symbol: f64,
         pct_non_character: f64,
     }
 
     pub fn compute_stats(input: &str) -> MessageStats {
-        // returns pct space, pct punctuation and pct non character
+        // returns pct space, pct symbol and pct non character
         // which are fairly robust indicators of legitimate messages
-        let punctuation: HashSet<char> = vec!['.', ',', ';', ':', '!', '?', '\'', '"', '-']
-            .into_iter()
-            .collect();
-        let mut num_punctuation = 0.0;
+        let symbol: HashSet<char> = vec![
+            '.', ',', ';', ':', '!', '?', '\'', '"', '-', '<', '>', '&', '$', '(', ')', '/', '}',
+            '|', '`', '~',
+        ]
+        .into_iter()
+        .collect();
+        let mut num_symbol = 0.0;
         let mut num_non_char = 0.0;
         let mut num_space = 0.0;
 
@@ -411,16 +415,16 @@ pub mod kev_crypto {
                 num_space += 1.0;
             }
 
-            if punctuation.contains(&c) {
-                num_punctuation += 1.0;
+            if symbol.contains(&c) {
+                num_symbol += 1.0;
             }
         }
         let pct_space = num_space / input.len() as f64;
-        let pct_punctuation = num_punctuation / input.len() as f64;
+        let pct_symbol = num_symbol / input.len() as f64;
         let pct_non_character = num_non_char / input.len() as f64;
         MessageStats {
             pct_space,
-            pct_punctuation,
+            pct_symbol,
             pct_non_character,
         }
     }

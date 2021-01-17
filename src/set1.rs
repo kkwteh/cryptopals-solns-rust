@@ -50,7 +50,7 @@ pub mod set1 {
         let crit = MessageCriteria {
             max_pct_non_character: 0.001,
             min_pct_space: 0.07,
-            max_pct_punctuation: 0.1,
+            max_pct_symbol: 0.1,
         };
         let single_char_result = single_char_xor(&encoded_message, &crit);
         match single_char_result {
@@ -71,7 +71,7 @@ pub mod set1 {
         let crit = MessageCriteria {
             max_pct_non_character: 0.001,
             min_pct_space: 0.07,
-            max_pct_punctuation: 0.1,
+            max_pct_symbol: 0.1,
         };
         for line in reader.lines() {
             let original_hexstring = line.unwrap();
@@ -114,7 +114,7 @@ pub mod set1 {
         let crit = MessageCriteria {
             max_pct_non_character: 0.001,
             min_pct_space: 0.07,
-            max_pct_punctuation: 0.1,
+            max_pct_symbol: 0.1,
         };
         for i in 0..keysize {
             let transpose: Vec<u8> = input[i..].iter().step_by(keysize).cloned().collect();

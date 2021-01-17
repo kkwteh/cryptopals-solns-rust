@@ -1,12 +1,14 @@
 mod set3 {
     use crate::kev_crypto::kev_crypto::{
-        pkcs7_padding, random_block, remove_padding, xor_bytes, Crypto, PaddingError,
-        PaddingErrorData, SimpleCbc, SimpleCtr, BLOCK_SIZE,
+        pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
+        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, BLOCK_SIZE,
     };
     use lazy_static::lazy_static;
     use openssl::symm;
     use rand;
     use rand::Rng;
+    use std::fs::File;
+    use std::io::{self, prelude::*, BufReader};
     use std::str;
     lazy_static! {
         static ref KEY: Vec<u8> = random_block();
@@ -151,5 +153,78 @@ mod set3 {
         let mut output: Vec<u8> = vec![0u8; input.len()];
         ctr.update(&input, &mut output).unwrap();
         println!("Decrypted string: {:?}", str::from_utf8(&output).unwrap());
+    }
+
+    #[test]
+    fn challenge_19() {
+        let file = File::open("input/19.txt").unwrap();
+        let reader = BufReader::new(file);
+        let first_letter_crit = MessageCriteria {
+            max_pct_non_character: 0.001,
+            min_pct_space: 0.00,
+            max_pct_symbol: 0.005,
+        };
+        let generic_crit = MessageCriteria {
+            max_pct_non_character: 0.001,
+            min_pct_space: 0.05,
+            max_pct_symbol: 0.08,
+        };
+        let lines: Vec<Vec<u8>> = reader
+            .lines()
+            .map(|line| {
+                let base64_string = line.unwrap();
+                let input = base64::decode(base64_string).unwrap();
+                let mut ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
+                let mut output: Vec<u8> = vec![0u8; input.len()];
+                ctr.update(&input, &mut output).unwrap();
+                output
+            })
+            .collect();
+
+        let mut min_length = 9999;
+        lines
+            .iter()
+            .map(|line| {
+                if line.len() < min_length {
+                    min_length = line.len()
+                }
+            })
+            .count();
+
+        println!("min line length {:?}", min_length);
+        println!("first encrypted line {:?}", lines[0]);
+        let key_string: Vec<u8> = (0..min_length)
+            .map(|i| {
+                let byte_column: Vec<u8> = lines.iter().map(|line| line[i]).collect();
+                let crit = {
+                    if i == 0 {
+                        &first_letter_crit
+                    } else {
+                        &generic_crit
+                    }
+                };
+                match single_char_xor(&byte_column, crit) {
+                    Some(result) => result.best_char,
+                    None => '?' as u8,
+                }
+            })
+            .collect();
+        println!("key string bytes {:?}", key_string);
+
+        lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let decrypted_bytes = xor_bytes(&key_string, &line);
+                println!("Line {:?}", i);
+                (0..decrypted_bytes.len())
+                    .map(|i| match str::from_utf8(&decrypted_bytes[i..i + 1]) {
+                        Ok(decrypted_byte) => print!("{:?}", decrypted_byte),
+                        Err(_) => print!("?"),
+                    })
+                    .count();
+                println!("");
+            })
+            .count();
     }
 }
