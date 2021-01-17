@@ -316,6 +316,7 @@ mod set3 {
             .collect();
         println!("key string bytes {:?}", key_string);
         // We can get the rest of the key string by reading the initial segments and seeing which characters must necessarily follow.
+        // Patch the first character by hand, since the statistics for spaces are different
         // Line 0: Starts with ?'m. (I ascii code 73)
         key_string[0] = lines[0][0] ^ 73;
         // TODO(boring).. fill in the rest as in challenge 19

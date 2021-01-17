@@ -428,4 +428,8 @@ pub mod kev_crypto {
             pct_non_character,
         }
     }
+
+    pub fn mt19937() {
+        // Wikipedia description https://en.wikipedia.org/wiki/Mersenne_Twister#Algorithmic_detail
+    }
 }
