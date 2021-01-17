@@ -260,4 +260,88 @@ mod set3 {
             })
             .count();
     }
+
+    #[test]
+    fn challenge_20() {
+        let file = File::open("input/20.txt").unwrap();
+        let reader = BufReader::new(file);
+        let first_letter_crit = MessageCriteria {
+            max_pct_non_character: 0.001,
+            min_pct_space: 0.00,
+            max_pct_symbol: 0.005,
+        };
+        let generic_crit = MessageCriteria {
+            max_pct_non_character: 0.001,
+            min_pct_space: 0.05,
+            max_pct_symbol: 0.08,
+        };
+        let lines: Vec<Vec<u8>> = reader
+            .lines()
+            .map(|line| {
+                let base64_string = line.unwrap();
+                let input = base64::decode(base64_string).unwrap();
+                let mut ctr = SimpleCtr::new("YELLOW SUBMARINE".as_bytes(), vec![0u8; 8]);
+                let mut output: Vec<u8> = vec![0u8; input.len()];
+                ctr.update(&input, &mut output).unwrap();
+                output
+            })
+            .collect();
+
+        let mut min_length = 9999;
+        lines
+            .iter()
+            .map(|line| {
+                if line.len() < min_length {
+                    min_length = line.len()
+                }
+            })
+            .count();
+
+        println!("min line length {:?}", min_length);
+        let mut key_string: Vec<u8> = (0..min_length)
+            .map(|i| {
+                let byte_column: Vec<u8> = lines.iter().map(|line| line[i]).collect();
+                let crit = {
+                    if i == 0 {
+                        &first_letter_crit
+                    } else {
+                        &generic_crit
+                    }
+                };
+                match single_char_xor(&byte_column, crit) {
+                    Some(result) => result.best_char,
+                    None => '?' as u8,
+                }
+            })
+            .collect();
+        println!("key string bytes {:?}", key_string);
+        // We can get the rest of the key string by reading the initial segments and seeing which characters must necessarily follow.
+        // Line 0: Starts with ?'m. (I ascii code 73)
+        key_string[0] = lines[0][0] ^ 73;
+        // Line 1 14th character bac? (k ascii code 107)
+        key_string[14] = lines[1][14] ^ 107;
+        // Line 1 20th character a?t?ck (t ascii code 116)
+        key_string[20] = lines[1][20] ^ 116;
+        // Line 1 22th character a?t?ck (a ascii code 97)
+        key_string[22] = lines[1][22] ^ 97;
+        // Line 0 28th character wa?ning (r ascii code 114)
+        key_string[28] = lines[0][28] ^ 114;
+        // TODO(boring).. fill in the rest
+
+        lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| {
+                let decrypted_bytes = xor_bytes(&line, &key_string);
+                println!("Line {:?}", i);
+                (0..decrypted_bytes.len())
+                    .map(|i| match str::from_utf8(&decrypted_bytes[i..i + 1]) {
+                        Ok(decrypted_byte) => print!("{:?}", decrypted_byte),
+                        Err(_) => print!("?"),
+                    })
+                    .count();
+                println!("");
+            })
+            .count();
+    }
 }
