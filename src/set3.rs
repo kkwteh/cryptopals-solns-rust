@@ -193,7 +193,7 @@ mod set3 {
 
         println!("min line length {:?}", min_length);
         println!("first encrypted line {:?}", lines[0]);
-        let key_string: Vec<u8> = (0..min_length)
+        let mut key_string: Vec<u8> = (0..min_length)
             .map(|i| {
                 let byte_column: Vec<u8> = lines.iter().map(|line| line[i]).collect();
                 let crit = {
@@ -210,12 +210,45 @@ mod set3 {
             })
             .collect();
         println!("key string bytes {:?}", key_string);
+        // We can get the rest of the key string by reading the initial segments and seeing which characters must necessarily follow.
+        // Line 5: ends with meaningles? so next character is s (ascii code 115)
+        key_string.push(lines[5][min_length] ^ 115);
+        // Line 6: ends with awhi? so next two characters are l,e (ascii code 108, 101)
+        key_string.push(lines[6][min_length + 1] ^ 108);
+        key_string.push(lines[6][min_length + 2] ^ 101);
+        // Line 21: ends with beautifu? so next character is l (ascii code 108)
+        key_string.push(lines[21][min_length + 3] ^ 108);
+        // Line 24: ends with hors? so next character is e (ascii code 101)
+        key_string.push(lines[24][min_length + 4] ^ 101);
+        // Line 30: ends with dream? so next character is m (ascii code 109)
+        key_string.push(lines[30][min_length + 5] ^ 109);
+        // Line 19: ends with shril? so next character is l (ascii code 108)
+        key_string.push(lines[19][min_length + 6] ^ 108);
+        // Line 14: ends with utterl? so next character is y (ascci code 121)
+        key_string.push(lines[14][min_length + 7] ^ 121);
+        // Line 32: ends with wron? so next character is g (ascii code 103)
+        key_string.push(lines[32][min_length + 8] ^ 103);
+        // Line 28: ends with seeme? so next character is d (ascii code 100)
+        key_string.push(lines[28][min_length + 9] ^ 100);
+        // Line 25: ends with his helper and frie?? so next characters are n,d (ascii code 110, 100)
+        key_string.push(lines[25][min_length + 10] ^ 110);
+        key_string.push(lines[25][min_length + 11] ^ 100);
+        // Line 27: ends with in the en? so next character is d (ascii code 100)
+        key_string.push(lines[27][min_length + 12] ^ 100);
+        // Line 4: ends with nod of the h??? so next characters are e,a,d (ascii code 101, 97, 100)
+        key_string.push(lines[4][min_length + 13] ^ 101);
+        key_string.push(lines[4][min_length + 14] ^ 97);
+        key_string.push(lines[4][min_length + 15] ^ 100);
+        // Only one line left
+        // Line 37 ends with changed in his tur?? next characters could be n, (ascii code 110, 44)
+        key_string.push(lines[37][min_length + 16] ^ 110);
+        key_string.push(lines[37][min_length + 17] ^ 44);
 
         lines
             .iter()
             .enumerate()
             .map(|(i, line)| {
-                let decrypted_bytes = xor_bytes(&key_string, &line);
+                let decrypted_bytes = xor_bytes(&line, &key_string);
                 println!("Line {:?}", i);
                 (0..decrypted_bytes.len())
                     .map(|i| match str::from_utf8(&decrypted_bytes[i..i + 1]) {
