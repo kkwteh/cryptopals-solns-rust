@@ -49,11 +49,11 @@ pub mod kev_crypto {
     }
 
     impl fmt::Display for PaddingError {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
             match self.data {
                 PaddingErrorData::BadEnd(last_byte, trailing_copies) => {
                     write!(
-                        f,
+                        formatter,
                         "{}",
                         &format!(
                             "Invalid padding. Last byte {} does not match number of trailing copies {}",
@@ -63,7 +63,7 @@ pub mod kev_crypto {
                 }
                 PaddingErrorData::BadLength(length) => {
                     write!(
-                        f,
+                        formatter,
                         "{}",
                         &format!(
                             "Invalid padded string. Input length {} is not a multiple of 16",
@@ -429,24 +429,29 @@ pub mod kev_crypto {
         }
     }
 
-    // The coefficients for MT19937-64 are:[52]
-    const w: usize = 64;
-    const n: usize = 312;
-    const m: usize = 156;
+    // (w, n, m, r) = (32, 624, 397, 31)
+    const w: usize = 32;
+    const n: usize = 624;
+    const m: usize = 397;
     const r: usize = 31;
-    // a = B5026F5AA96619E916
-    const a: u64 = 0xB5026F5AA96619E9u64;
-    // (u, d) = (29, 555555555555555516)
-    const u: usize = 29;
-    const d: u64 = 0x5555555555555555u64;
-    // (s, b) = (17, 71D67FFFEDA6000016)
-    const s: usize = 17;
-    const b: u64 = 0x71D67FFFEDA60000u64;
-    // (t, c) = (37, FFF7EEE00000000016)
-    const t: usize = 37;
-    const c: u64 = 0xFFF7EEE000000000u64;
+    // a = 9908B0DF16
+    const a: u32 = 0x9908B0DFu32;
+    // (u, d) = (11, FFFFFFFF16)
+    const u: usize = 11;
+    const d: u32 = 0xFFFFFFFFu32;
+    // (s, b) = (7, 9D2C568016)
+    const s: usize = 7;
+    const b: u32 = 0x9D2C5680u32;
+    // (t, c) = (15, EFC6000016)
+    const t: usize = 15;
+    const c: u32 = 0xEFC60000u32;
+    // l = 18
+    const l: usize = 18;
+    // const int lower_mask = (1 << r) - 1 // That is, the binary number of r 1's
     const lower_mask: u32 = (1 << r) - 1;
-    const l: usize = 43;
+    // const int upper_mask = lowest w bits of (not lower_mask)
+    const upper_mask: u32 = !lower_mask;
+    const f: u32 = 1812433253;
     pub fn mt19937() {
         // Wikipedia description https://en.wikipedia.org/wiki/Mersenne_Twister#Algorithmic_detail
 
@@ -454,16 +459,6 @@ pub mod kev_crypto {
         let mt: [u32; n] = [0; n];
         // int index := n+1
         let index = n + 1;
-        // const int lower_mask = (1 << r) - 1 // That is, the binary number of r 1's
-        // const int upper_mask = lowest w bits of (not lower_mask)
-        // // Initialize the generator from a seed
-        // function seed_mt(int seed) {
-        //     index := n
-        //     MT[0] := seed
-        //     for i from 1 to (n - 1) { // loop over each element
-        //         MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
-        //     }
-        // }
         // // Extract a tempered value based on MT[index]
         // // calling twist() every n numbers
         // function extract_number() {
@@ -498,6 +493,31 @@ pub mod kev_crypto {
         // }
     }
 
+    // // Initialize the generator from a seed
+    // function seed_mt(int seed) {
+    fn seed_mt(mt: &mut [u32], seed: u32) {
+        //     index := n
+        let index = n;
+        //     MT[0] := seed
+        mt[0] = seed;
+        // for i from 1 to (n - 1) { // loop over each element
+        for i in 1..=(n - 1) {
+            let right_shift = mt[i - 1] >> (w - 2);
+            let xor = mt[i - 1] ^ right_shift;
+            let (mult, _) = f.overflowing_mul(xor);
+            let (sum, _) = f.overflowing_add(i as u32);
+            mt[i] = sum;
+        }
+        // MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
+        // w = 32, so lowest w bits is just all the bits.
+    }
+
+    #[test]
+    fn test_mt() {
+        let mut mt: [u32; n] = [0; n];
+        seed_mt(&mut mt, 1);
+    }
+
     #[test]
     fn test_bit_shift() {
         let foo: u32 = 12345;
@@ -508,5 +528,11 @@ pub mod kev_crypto {
         let bar: u32 = u32::from_str_radix("9908B0DF", 16).unwrap();
         println!("bar {:?}", bar);
         println!("bar xor bar {:?}", bar ^ bar);
+    }
+
+    #[test]
+    fn test_mult_overflow() {
+        let foo = 0xFFFFFFFFu32 << 30;
+        println!("Foo {:?}", format!("{:X}", foo));
     }
 }
