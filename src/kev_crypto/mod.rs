@@ -518,7 +518,7 @@ pub mod kev_crypto {
         }
     }
     #[test]
-    fn test_mt() {
+    fn challenge_21() {
         // numpy mt lets you view state https://numpy.org/doc/stable/reference/random/bit_generators/mt19937.html
         // Output matches what is shown at https://create.stephan-brumme.com/mersenne-twister/ has c++ code
         let mut twister = Twister::new(2);
@@ -528,9 +528,6 @@ pub mod kev_crypto {
     #[test]
     fn test_bit_shift() {
         let foo: u32 = 12345;
-        // println!("foo << 1 = {:?}", foo << 1);
-        // println!("foo << 100 = {:?}", foo << 100);
-        // println!("foo >> 100 = {:?}", foo >> 1);
         use std::u32;
         let bar: u32 = u32::from_str_radix("9908B0DF", 16).unwrap();
         println!("bar {:?}", bar);
