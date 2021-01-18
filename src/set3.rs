@@ -1,7 +1,7 @@
 mod set3 {
     use crate::kev_crypto::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
-        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, BLOCK_SIZE,
+        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, Twister, BLOCK_SIZE,
     };
     use lazy_static::lazy_static;
     use openssl::symm;
@@ -10,6 +10,7 @@ mod set3 {
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
     use std::str;
+    use std::time::SystemTime;
     lazy_static! {
         static ref KEY: Vec<u8> = random_block();
     }
@@ -335,6 +336,33 @@ mod set3 {
                     .count();
                 println!("");
             })
+            .count();
+    }
+
+    #[test]
+    fn system_time() {
+        println!(
+            "{:?}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32
+        );
+    }
+
+    #[test]
+    fn challenge_22() {
+        let mut rng = rand::thread_rng();
+        let current_unix_timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
+        let seed_timestamp = current_unix_timestamp + rng.gen_range(40..1000) as u32;
+        let mut twister = Twister::new(seed_timestamp);
+        let current_timestamp = seed_timestamp + rng.gen_range(40..1000) as u32;
+        let random_value = twister.get();
+        ((current_timestamp - 2000)..current_timestamp)
+            .map(|possible_seed| true)
             .count();
     }
 }
