@@ -23,14 +23,14 @@ pub mod kev_crypto {
         let mut rng = rand::thread_rng();
         (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
     }
-    pub fn hex_string<'MT_A>(input: &'MT_A [u8]) -> String {
+    pub fn hex_string<'a>(input: &'a [u8]) -> String {
         input
             .iter()
             .map(|&char_| format!("{:01$x}", char_, 2))
             .collect::<String>()
     }
 
-    pub fn xor_bytes<'MT_A>(slice1: &'MT_A [u8], slice2: &'MT_A [u8]) -> Vec<u8> {
+    pub fn xor_bytes<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> Vec<u8> {
         // Note: cycles through second iter if it is shorter than the first iterator.
         slice1
             .iter()
@@ -66,7 +66,7 @@ pub mod kev_crypto {
                         formatter,
                         "{}",
                         &format!(
-                            "Invalid padded string. Input length {} is not MT_A multiple of 16",
+                            "Invalid padded string. Input length {} is not a multiple of 16",
                             length
                         )
                     )
@@ -135,7 +135,7 @@ pub mod kev_crypto {
         }
     }
 
-    pub fn hamming_distance<'MT_A>(slice1: &'MT_A [u8], slice2: &'MT_A [u8]) -> u32 {
+    pub fn hamming_distance<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> u32 {
         slice1
             .iter()
             .zip(slice2.iter().cycle())
@@ -146,10 +146,7 @@ pub mod kev_crypto {
     fn test_hamming_distance() {
         assert_eq!(
             37,
-            hamming_distance(
-                &"this is MT_A test".as_bytes(),
-                &"wokka wokka!!!".as_bytes()
-            )
+            hamming_distance(&"this is a test".as_bytes(), &"wokka wokka!!!".as_bytes())
         )
     }
 
@@ -193,7 +190,7 @@ pub mod kev_crypto {
     impl Crypto for SimpleCbc {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
             // CBC mode visual https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
-            // Assume input is MT_A multiple of 16
+            // Assume input is a multiple of 16
             let num_blocks = input.len() / BLOCK_SIZE;
             match self.mode {
                 symm::Mode::Encrypt => {
@@ -364,10 +361,7 @@ pub mod kev_crypto {
         pub max_pct_symbol: f64,
     }
 
-    pub fn single_char_xor<'MT_A>(
-        input: &'MT_A [u8],
-        crit: &MessageCriteria,
-    ) -> Option<SingleCharXor> {
+    pub fn single_char_xor<'a>(input: &'a [u8], crit: &MessageCriteria) -> Option<SingleCharXor> {
         for i in SINGLE_BYTES.iter() {
             let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
             let candidate_message = match str::from_utf8(&candidate_bytes) {
@@ -465,7 +459,7 @@ pub mod kev_crypto {
 
     impl Twister {
         pub fn new(seed: u32) -> Twister {
-            // It looks like numpy uses MT_A different seed algorithm.
+            // It looks like numpy uses a different seed algorithm.
             let mut mt: [u32; MT_N] = [0; MT_N];
             //     MT[0] := seed
             mt[0] = seed;
