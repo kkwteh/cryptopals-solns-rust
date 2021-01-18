@@ -3,6 +3,7 @@ mod set3 {
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
         MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, Twister, BLOCK_SIZE,
     };
+    use bitvec::prelude::*;
     use lazy_static::lazy_static;
     use openssl::symm;
     use rand;
@@ -373,5 +374,36 @@ mod set3 {
             .max();
 
         assert_eq!(cracked_seed.unwrap(), seed_timestamp);
+    }
+
+    #[test]
+    fn challenge_23() {
+        // Challenge is to clone a MT19337 by observing 624 generated numbers and recreating the state.
+        // In order to do so we need to inverse the tempering transformations
+        let mut foo: BitVec<Msb0, u32> = BitVec::with_capacity(32);
+        foo.resize(32, false);
+        foo[..].store(0x9d2c5680u32);
+        println!("{:?}", &foo);
+        let mut bar: BitVec<Msb0, u32> = BitVec::new();
+        bar.resize(32, false);
+        bar[..].store(0xaaaaaaaau32);
+        // println!("{:?}", bar[3] ^ foo[31]);
+        let bar = to_u32(&foo);
+        assert_eq!(bar, 0x9d2c5680u32);
+    }
+
+    #[test]
+    fn test_to_u32() {
+        // Challenge is to clone a MT19337 by observing 624 generated numbers and recreating the state.
+        // In order to do so we need to inverse the tempering transformations
+        let mut foo: BitVec<Msb0, u32> = BitVec::with_capacity(32);
+        foo.resize(32, false);
+        foo[..].store(0x9d2c5680u32);
+        let bar = to_u32(&foo);
+        assert_eq!(bar, 0x9d2c5680u32);
+    }
+
+    fn to_u32(slice: &BitVec<Msb0, u32>) -> u32 {
+        (0..32).fold(0, |acc, i| (acc << 1) + (slice[i] as u32))
     }
 }

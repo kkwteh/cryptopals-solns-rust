@@ -23,14 +23,14 @@ pub mod kev_crypto {
         let mut rng = rand::thread_rng();
         (0..BLOCK_SIZE).map(|_| rng.gen::<u8>()).collect()
     }
-    pub fn hex_string<'a>(input: &'a [u8]) -> String {
+    pub fn hex_string<'MT_A>(input: &'MT_A [u8]) -> String {
         input
             .iter()
             .map(|&char_| format!("{:01$x}", char_, 2))
             .collect::<String>()
     }
 
-    pub fn xor_bytes<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> Vec<u8> {
+    pub fn xor_bytes<'MT_A>(slice1: &'MT_A [u8], slice2: &'MT_A [u8]) -> Vec<u8> {
         // Note: cycles through second iter if it is shorter than the first iterator.
         slice1
             .iter()
@@ -66,7 +66,7 @@ pub mod kev_crypto {
                         formatter,
                         "{}",
                         &format!(
-                            "Invalid padded string. Input length {} is not a multiple of 16",
+                            "Invalid padded string. Input length {} is not MT_A multiple of 16",
                             length
                         )
                     )
@@ -135,7 +135,7 @@ pub mod kev_crypto {
         }
     }
 
-    pub fn hamming_distance<'a>(slice1: &'a [u8], slice2: &'a [u8]) -> u32 {
+    pub fn hamming_distance<'MT_A>(slice1: &'MT_A [u8], slice2: &'MT_A [u8]) -> u32 {
         slice1
             .iter()
             .zip(slice2.iter().cycle())
@@ -146,7 +146,10 @@ pub mod kev_crypto {
     fn test_hamming_distance() {
         assert_eq!(
             37,
-            hamming_distance(&"this is a test".as_bytes(), &"wokka wokka!!!".as_bytes())
+            hamming_distance(
+                &"this is MT_A test".as_bytes(),
+                &"wokka wokka!!!".as_bytes()
+            )
         )
     }
 
@@ -190,7 +193,7 @@ pub mod kev_crypto {
     impl Crypto for SimpleCbc {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
             // CBC mode visual https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
-            // Assume input is a multiple of 16
+            // Assume input is MT_A multiple of 16
             let num_blocks = input.len() / BLOCK_SIZE;
             match self.mode {
                 symm::Mode::Encrypt => {
@@ -313,7 +316,7 @@ pub mod kev_crypto {
         }
 
         fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
-            // Don't use this.
+            // Don'MT_T use this.
             return Ok(0);
         }
     }
@@ -361,7 +364,10 @@ pub mod kev_crypto {
         pub max_pct_symbol: f64,
     }
 
-    pub fn single_char_xor<'a>(input: &'a [u8], crit: &MessageCriteria) -> Option<SingleCharXor> {
+    pub fn single_char_xor<'MT_A>(
+        input: &'MT_A [u8],
+        crit: &MessageCriteria,
+    ) -> Option<SingleCharXor> {
         for i in SINGLE_BYTES.iter() {
             let candidate_bytes: Vec<u8> = xor_bytes(input, &[*i]);
             let candidate_message = match str::from_utf8(&candidate_bytes) {
@@ -429,75 +435,75 @@ pub mod kev_crypto {
         }
     }
 
-    // (w, n, m, r) = (32, 624, 397, 31)
-    const w: usize = 32;
-    const n: usize = 624;
-    const m: usize = 397;
-    const r: usize = 31;
-    // a = 9908B0DF16
-    const a: u32 = 0x9908B0DFu32;
-    // (u, d) = (11, FFFFFFFF16)
-    const u: usize = 11;
-    const d: u32 = 0xFFFFFFFFu32;
-    // (s, b) = (7, 9D2C568016)
-    const s: usize = 7;
-    const b: u32 = 0x9D2C5680u32;
-    // (t, c) = (15, EFC6000016)
-    const t: usize = 15;
-    const c: u32 = 0xEFC60000u32;
-    // l = 18
-    const l: usize = 18;
-    // const int lower_mask = (1 << r) - 1 // That is, the binary number of r 1's
-    const lower_mask: u32 = (1 << r) - 1;
-    // const int upper_mask = lowest w bits of (not lower_mask)
+    // (MT_W, MT_N, MT_M, MT_R) = (32, 624, 397, 31)
+    pub const MT_W: usize = 32;
+    pub const MT_N: usize = 624;
+    pub const MT_M: usize = 397;
+    pub const MT_R: usize = 31;
+    // MT_A = 9908B0DF16
+    pub const MT_A: u32 = 0x9908B0DFu32;
+    // (MT_U, MT_D) = (11, FFFFFFFF16)
+    pub const MT_U: usize = 11;
+    pub const MT_D: u32 = 0xFFFFFFFFu32;
+    // (MT_S, MT_B) = (7, 9D2C568016)
+    pub const MT_S: usize = 7;
+    pub const MT_B: u32 = 0x9D2C5680u32;
+    // (MT_T, MT_C) = (15, EFC6000016)
+    pub const MT_T: usize = 15;
+    pub const MT_C: u32 = 0xEFC60000u32;
+    // MT_L = 18
+    const MT_L: usize = 18;
+    // const int lower_mask = (1 << MT_R) - 1 // That is, the binary number of MT_R 1'MT_S
+    const lower_mask: u32 = (1 << MT_R) - 1;
+    // const int upper_mask = lowest MT_W bits of (not lower_mask)
     const upper_mask: u32 = !lower_mask;
     const f: u32 = 1812433253;
     pub struct Twister {
-        state: [u32; n],
+        state: [u32; MT_N],
         index: usize,
     }
 
     impl Twister {
         pub fn new(seed: u32) -> Twister {
-            // It looks like numpy uses a different seed algorithm.
-            let mut mt: [u32; n] = [0; n];
+            // It looks like numpy uses MT_A different seed algorithm.
+            let mut mt: [u32; MT_N] = [0; MT_N];
             //     MT[0] := seed
             mt[0] = seed;
-            // for i from 1 to (n - 1) { // loop over each element
-            for i in 1..=(n - 1) {
-                let right_shift = mt[i - 1] >> (w - 2);
+            // for i from 1 to (MT_N - 1) { // loop over each element
+            for i in 1..=(MT_N - 1) {
+                let right_shift = mt[i - 1] >> (MT_W - 2);
                 let xor = mt[i - 1] ^ right_shift;
                 let (mult, _) = f.overflowing_mul(xor);
                 let (sum, _) = mult.overflowing_add(i as u32);
                 mt[i] = sum;
-                // MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
-                // w = 32, so lowest w bits is just all the bits.
+                // MT[i] := lowest MT_W bits of (f * (MT[i-1] xor (MT[i-1] >> (MT_W-2))) + i)
+                // MT_W = 32, so lowest MT_W bits is just all the bits.
             }
 
             Twister {
                 state: mt,
-                index: n,
+                index: MT_N,
             }
         }
 
         // function twist() {
         fn twist(&mut self) {
             // State after twist matches numpy when initial states are synced.
-            //     for i from 0 to (n-1) {
-            for i in 0..n {
-                let x = (self.state[i] & upper_mask) + (self.state[(i + 1) % n] & lower_mask);
+            //     for i from 0 to (MT_N-1) {
+            for i in 0..MT_N {
+                let x = (self.state[i] & upper_mask) + (self.state[(i + 1) % MT_N] & lower_mask);
                 //  int x := (MT[i] and upper_mask)
-                //    + (MT[(i+1) mod n] and lower_mask)
+                //    + (MT[(i+1) mod MT_N] and lower_mask)
                 //  int xA := x >> 1
                 let mut xa = x >> 1;
                 // if (x mod 2) != 0 { // lowest bit of x is 1
                 if x.trailing_zeros() == 0 {
-                    // xA := xA xor a
-                    xa = xa ^ a;
+                    // xA := xA xor MT_A
+                    xa = xa ^ MT_A;
                 }
 
-                // MT[i] := MT[(i + m) mod n] xor xA
-                self.state[i] = self.state[(i + m) % n] ^ xa;
+                // MT[i] := MT[(i + MT_M) mod MT_N] xor xA
+                self.state[i] = self.state[(i + MT_M) % MT_N] ^ xa;
                 // index := 0
                 self.index = 0;
             }
@@ -505,22 +511,23 @@ pub mod kev_crypto {
 
         pub fn get(&mut self) -> u32 {
             // Matches numpy output when seed state is set explicitly
-            if self.index == n {
+            if self.index == MT_N {
                 self.twist();
             }
             let mut y = self.state[self.index];
-            y = y ^ ((y >> u) & d);
-            y = y ^ ((y << s) & b);
-            y = y ^ ((y << t) & c);
-            y = y ^ (y >> l);
+            y = y ^ ((y >> MT_U) & MT_D);
+            y = y ^ ((y << MT_S) & MT_B);
+            y = y ^ ((y << MT_T) & MT_C);
+            y = y ^ (y >> MT_L);
             self.index += 1;
             y
         }
     }
     #[test]
     fn challenge_21() {
+        // Challenge is to implement 32-bit Mersenne Twister MT1993
         // numpy mt lets you view state https://numpy.org/doc/stable/reference/random/bit_generators/mt19937.html
-        // Output matches what is shown at https://create.stephan-brumme.com/mersenne-twister/ has c++ code
+        // Output matches what is shown at https://create.stephan-brumme.com/mersenne-twister/ has MT_C++ code
         let mut twister = Twister::new(2);
         assert_eq!(0x6F9D5CA8u32, twister.get());
     }
