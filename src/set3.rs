@@ -361,8 +361,17 @@ mod set3 {
         let mut twister = Twister::new(seed_timestamp);
         let current_timestamp = seed_timestamp + rng.gen_range(40..1000) as u32;
         let random_value = twister.get();
-        ((current_timestamp - 2000)..current_timestamp)
-            .map(|possible_seed| true)
-            .count();
+        let cracked_seed = ((current_timestamp - 2000)..current_timestamp)
+            .map(|possible_seed| {
+                let mut p_twister = Twister::new(possible_seed);
+                if p_twister.get() == random_value {
+                    possible_seed
+                } else {
+                    0
+                }
+            })
+            .max();
+
+        assert_eq!(cracked_seed.unwrap(), seed_timestamp);
     }
 }
