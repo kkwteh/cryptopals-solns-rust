@@ -452,70 +452,77 @@ pub mod kev_crypto {
     // const int upper_mask = lowest w bits of (not lower_mask)
     const upper_mask: u32 = !lower_mask;
     const f: u32 = 1812433253;
-    pub fn mt19937() {
-        // Wikipedia description https://en.wikipedia.org/wiki/Mersenne_Twister#Algorithmic_detail
-
-        // int[0..n-1] MT
-        let mt: [u32; n] = [0; n];
-        // int index := n+1
-        let index = n + 1;
-        // // Extract a tempered value based on MT[index]
-        // // calling twist() every n numbers
-        // function extract_number() {
-        //     if index >= n {
-        //         if index > n {
-        //           error "Generator was never seeded"
-        //           // Alternatively, seed with constant value; 5489 is used in reference C code[53]
-        //         }
-        //         twist()
-        //     }
-        //     int y := MT[index]
-        //     y := y xor ((y >> u) and d)
-        //     y := y xor ((y << s) and b)
-        //     y := y xor ((y << t) and c)
-        //     y := y xor (y >> l)
-        //     index := index + 1
-        //     return lowest w bits of (y)
-        // }
-
-        // // Generate the next n values from the series x_i
-        // function twist() {
-        //     for i from 0 to (n-1) {
-        //         int x := (MT[i] and upper_mask)
-        //                   + (MT[(i+1) mod n] and lower_mask)
-        //         int xA := x >> 1
-        //         if (x mod 2) != 0 { // lowest bit of x is 1
-        //             xA := xA xor a
-        //         }
-        //         MT[i] := MT[(i + m) mod n] xor xA
-        //     }
-        //     index := 0
-        // }
+    pub struct Twister {
+        state: [u32; n],
+        index: usize,
     }
 
-    // // Initialize the generator from a seed
-    // function seed_mt(int seed) {
-    fn seed_mt(mt: &mut [u32], seed: u32) {
-        //     index := n
-        let index = n;
-        //     MT[0] := seed
-        mt[0] = seed;
-        // for i from 1 to (n - 1) { // loop over each element
-        for i in 1..=(n - 1) {
-            let right_shift = mt[i - 1] >> (w - 2);
-            let xor = mt[i - 1] ^ right_shift;
-            let (mult, _) = f.overflowing_mul(xor);
-            let (sum, _) = f.overflowing_add(i as u32);
-            mt[i] = sum;
+    impl Twister {
+        pub fn new(seed: u32) -> Twister {
+            // It looks like numpy uses a different seed algorithm.
+            let mut mt: [u32; n] = [0; n];
+            //     MT[0] := seed
+            mt[0] = seed;
+            // for i from 1 to (n - 1) { // loop over each element
+            for i in 1..=(n - 1) {
+                let right_shift = mt[i - 1] >> (w - 2);
+                let xor = mt[i - 1] ^ right_shift;
+                let (mult, _) = f.overflowing_mul(xor);
+                let (sum, _) = mult.overflowing_add(i as u32);
+                mt[i] = sum;
+                // MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
+                // w = 32, so lowest w bits is just all the bits.
+            }
+
+            Twister {
+                state: mt,
+                index: n,
+            }
         }
-        // MT[i] := lowest w bits of (f * (MT[i-1] xor (MT[i-1] >> (w-2))) + i)
-        // w = 32, so lowest w bits is just all the bits.
-    }
 
+        // function twist() {
+        fn twist(&mut self) {
+            // State after twist matches numpy when initial states are synced.
+            //     for i from 0 to (n-1) {
+            for i in 0..n {
+                let x = (self.state[i] & upper_mask) + (self.state[(i + 1) % n] & lower_mask);
+                //  int x := (MT[i] and upper_mask)
+                //    + (MT[(i+1) mod n] and lower_mask)
+                //  int xA := x >> 1
+                let mut xa = x >> 1;
+                // if (x mod 2) != 0 { // lowest bit of x is 1
+                if x.trailing_zeros() == 0 {
+                    // xA := xA xor a
+                    xa = xa ^ a;
+                }
+
+                // MT[i] := MT[(i + m) mod n] xor xA
+                self.state[i] = self.state[(i + m) % n] ^ xa;
+                // index := 0
+                self.index = 0;
+            }
+        }
+
+        pub fn get(&mut self) -> u32 {
+            // Matches numpy output when seed state is set explicitly
+            if self.index == n {
+                self.twist();
+            }
+            let mut y = self.state[self.index];
+            y = y ^ ((y >> u) & d);
+            y = y ^ ((y << s) & b);
+            y = y ^ ((y << t) & c);
+            y = y ^ (y >> l);
+            self.index += 1;
+            y
+        }
+    }
     #[test]
     fn test_mt() {
-        let mut mt: [u32; n] = [0; n];
-        seed_mt(&mut mt, 1);
+        // numpy mt lets you view state https://numpy.org/doc/stable/reference/random/bit_generators/mt19937.html
+        // Output matches what is shown at https://create.stephan-brumme.com/mersenne-twister/ has c++ code
+        let mut twister = Twister::new(2);
+        assert_eq!(0x6F9D5CA8u32, twister.get());
     }
 
     #[test]
@@ -532,7 +539,7 @@ pub mod kev_crypto {
 
     #[test]
     fn test_mult_overflow() {
-        let foo = 0xFFFFFFFFu32 << 30;
-        println!("Foo {:?}", format!("{:X}", foo));
+        assert_eq!(2 % 5, 2);
+        assert_eq!(5 % 5, 0);
     }
 }
