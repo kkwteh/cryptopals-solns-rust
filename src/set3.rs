@@ -383,6 +383,9 @@ mod set3 {
     }
     fn untemper_step(value: u32, dir: Direction, shift_size: usize, and_value: u32) -> u32 {
         // reverses a step of the tempering transformation of MT19337 to recover its state.
+        // All steps have the from of y ^ ((y shift shift_size) & and_value).
+        // where shift is either a left or right bit shift. In the last step, we can
+        // take the and_value to be 0xFFFFFFFFu32;
         // tempering code
         // let mut y = self.state[self.index];
         // y = y ^ ((y >> MT_U) & MT_D);
