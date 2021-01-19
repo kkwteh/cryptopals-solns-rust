@@ -360,12 +360,12 @@ mod set3 {
             .unwrap()
             .as_secs() as u32;
         let seed_timestamp = current_unix_timestamp + rng.gen_range(40..1000) as u32;
-        let mut twister = Twister::new(seed_timestamp);
+        let mut twister = Twister::new_from_seed(seed_timestamp);
         let current_timestamp = seed_timestamp + rng.gen_range(40..1000) as u32;
         let random_value = twister.get();
         let cracked_seed = ((current_timestamp - 2000)..current_timestamp)
             .map(|possible_seed| {
-                let mut p_twister = Twister::new(possible_seed);
+                let mut p_twister = Twister::new_from_seed(possible_seed);
                 if p_twister.get() == random_value {
                     possible_seed
                 } else {
