@@ -2,7 +2,7 @@ mod set3 {
     use crate::kev_crypto::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
         MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, Twister, BLOCK_SIZE,
-        MT_B, MT_C, MT_D, MT_L, MT_S, MT_T, MT_U,
+        MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
     };
     use bitvec::prelude::*;
     use lazy_static::lazy_static;
@@ -377,22 +377,6 @@ mod set3 {
         assert_eq!(cracked_seed.unwrap(), seed_timestamp);
     }
 
-    #[test]
-    fn challenge_23() {
-        // Challenge is to clone a MT19337 by observing 624 generated numbers and recreating the state.
-        // In order to do so we need to inverse the tempering transformations
-        let mut foo: BitVec<Msb0, u32> = BitVec::with_capacity(32);
-        foo.resize(32, false);
-        foo[..].store(0x9d2c5680u32);
-        println!("{:?}", &foo);
-        let mut bar: BitVec<Msb0, u32> = BitVec::new();
-        bar.resize(32, false);
-        bar[..].store(0xaaaaaaaau32);
-        // println!("{:?}", bar[3] ^ foo[31]);
-        let bar = to_u32(&foo);
-        assert_eq!(bar, 0x9d2c5680u32);
-    }
-
     enum Direction {
         Left,
         Right,
@@ -446,6 +430,39 @@ mod set3 {
         let tempered_value = untempered_value ^ ((untempered_value << MT_S) & MT_B);
         let result = untemper_step(tempered_value, Direction::Left, MT_S, MT_B);
         assert_eq!(result, untempered_value);
+    }
+
+    #[test]
+    fn challenge_23() {
+        // We assume here that the twister has just been initialized. If we do not know this, we could
+        // maintain a list of untempered values and use successive MT_N-length blocks until we are
+        // successfully able to clone the twister.
+
+        // tempering code
+        // let mut y = self.state[self.index];
+        // y = y ^ ((y >> MT_U) & MT_D);
+        // y = y ^ ((y << MT_S) & MT_B);
+        // y = y ^ ((y << MT_T) & MT_C);
+        // y = y ^ (y >> MT_L);
+        let mut rng = rand::thread_rng();
+        let seed = rng.gen::<u32>();
+        let mut twister = Twister::new_from_seed(seed);
+        let mut cracked_state: [u32; MT_N] = [0; MT_N];
+        for i in (0..MT_N) {
+            let value = twister.get();
+            let untempered = untemper_step(value, Direction::Right, MT_L, MT_D);
+            let untempered = untemper_step(untempered, Direction::Left, MT_T, MT_C);
+            let untempered = untemper_step(untempered, Direction::Left, MT_S, MT_B);
+            let untempered = untemper_step(untempered, Direction::Right, MT_U, MT_D);
+            cracked_state[i] = untempered;
+        }
+        assert_eq!(twister.state, cracked_state);
+        assert_eq!(twister.index, MT_N);
+        // just for fun
+        let mut cracked_twister = Twister::new_from_state(cracked_state, MT_N);
+        assert_eq!(twister.get(), cracked_twister.get());
+        assert_eq!(twister.get(), cracked_twister.get());
+        assert_eq!(twister.get(), cracked_twister.get());
     }
 
     #[test]

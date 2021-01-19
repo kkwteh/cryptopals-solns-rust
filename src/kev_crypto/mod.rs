@@ -480,7 +480,7 @@ pub mod kev_crypto {
             }
         }
 
-        fn new_from_state(state: [u32; MT_N], index: usize) -> Twister {
+        pub fn new_from_state(state: [u32; MT_N], index: usize) -> Twister {
             Twister { state, index }
         }
 
