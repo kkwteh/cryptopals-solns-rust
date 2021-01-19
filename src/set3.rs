@@ -2,6 +2,7 @@ mod set3 {
     use crate::kev_crypto::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
         MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, Twister, BLOCK_SIZE,
+        MT_B, MT_C, MT_D, MT_L, MT_S, MT_T, MT_U,
     };
     use bitvec::prelude::*;
     use lazy_static::lazy_static;
@@ -390,6 +391,61 @@ mod set3 {
         // println!("{:?}", bar[3] ^ foo[31]);
         let bar = to_u32(&foo);
         assert_eq!(bar, 0x9d2c5680u32);
+    }
+
+    enum Direction {
+        Left,
+        Right,
+    }
+    fn untemper_step(value: u32, dir: Direction, shift_size: usize, and_value: u32) -> u32 {
+        // reverses a step of the tempering transformation of MT19337 to recover its state.
+        // tempering code
+        // let mut y = self.state[self.index];
+        // y = y ^ ((y >> MT_U) & MT_D);
+        // y = y ^ ((y << MT_S) & MT_B);
+        // y = y ^ ((y << MT_T) & MT_C);
+        // y = y ^ (y >> MT_L);
+        let mut value_bits: BitVec<Msb0, u32> = BitVec::with_capacity(32);
+        value_bits.resize(32, false);
+        value_bits[..].store(value);
+
+        let mut and_value_bits: BitVec<Msb0, u32> = BitVec::with_capacity(32);
+        and_value_bits.resize(32, false);
+        and_value_bits[..].store(and_value);
+
+        let mut untempered_bits: BitVec<Msb0, u32> = BitVec::with_capacity(32);
+        untempered_bits.resize(32, false);
+        for i in 0..=31 {
+            let bit_index = match dir {
+                Direction::Left => 31 - i,
+                Direction::Right => i,
+            };
+            if i < shift_size {
+                untempered_bits.set(bit_index, value_bits[bit_index]);
+            } else {
+                let shifted_bit = match dir {
+                    Direction::Left => untempered_bits[bit_index + shift_size],
+                    Direction::Right => untempered_bits[bit_index - shift_size],
+                };
+                untempered_bits.set(
+                    bit_index,
+                    value_bits[bit_index] ^ (shifted_bit & and_value_bits[bit_index]),
+                );
+            }
+        }
+        to_u32(&untempered_bits)
+    }
+
+    #[test]
+    fn test_untemper() {
+        let untempered_value = 0xABCDEF98u32;
+        let tempered_value = untempered_value ^ ((untempered_value >> MT_U) & MT_D);
+        let result = untemper_step(tempered_value, Direction::Right, MT_U, MT_D);
+        assert_eq!(result, untempered_value);
+
+        let tempered_value = untempered_value ^ ((untempered_value << MT_S) & MT_B);
+        let result = untemper_step(tempered_value, Direction::Left, MT_S, MT_B);
+        assert_eq!(result, untempered_value);
     }
 
     #[test]

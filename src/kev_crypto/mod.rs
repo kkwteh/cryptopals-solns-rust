@@ -446,7 +446,7 @@ pub mod kev_crypto {
     pub const MT_T: usize = 15;
     pub const MT_C: u32 = 0xEFC60000u32;
     // MT_L = 18
-    const MT_L: usize = 18;
+    pub const MT_L: usize = 18;
     // const int lower_mask = (1 << MT_R) - 1 // That is, the binary number of MT_R 1'MT_S
     const lower_mask: u32 = (1 << MT_R) - 1;
     // const int upper_mask = lowest MT_W bits of (not lower_mask)
