@@ -482,4 +482,13 @@ mod set3 {
     fn to_u32(slice: &BitVec<Msb0, u32>) -> u32 {
         (0..32).fold(0, |acc, i| (acc << 1) + (slice[i] as u32))
     }
+
+    #[test]
+    fn challenge_24() {
+        // The key size for the problem is small, only 16 bits. (Is it possible that they mean 16 bytes?)
+        // 2**16 = 65,536
+        // Since we can encrypt a known plain text, we will be able to determine the i'th output of the twister for some i.
+        // So, we can simply generate all possible Mersenne twisters and match on the i'th output to determine the seed.
+        //
+    }
 }
