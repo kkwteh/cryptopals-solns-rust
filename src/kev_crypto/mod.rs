@@ -110,6 +110,7 @@ pub mod kev_crypto {
 
     pub trait Crypto {
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack>;
+        // TODO: remove finalize method from Crypto trait
         fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack>;
     }
 
@@ -313,7 +314,7 @@ pub mod kev_crypto {
         }
 
         fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
-            // Don'MT_T use this.
+            // Don't use this.
             return Ok(0);
         }
     }
@@ -332,6 +333,44 @@ pub mod kev_crypto {
             "Decrypted string: {:?}",
             str::from_utf8(&decrypted).unwrap()
         );
+    }
+
+    pub struct SimpleMT {
+        twister: Twister,
+    }
+    impl SimpleMT {
+        pub fn new(key: u32) -> SimpleMT {
+            SimpleMT {
+                twister: Twister::new_from_seed(key),
+            }
+        }
+    }
+
+    impl Crypto for SimpleMT {
+        fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+            let num_blocks = (input.len() / 4) + 1;
+            let keystream_bytes = (0..num_blocks).fold(Vec::<u8>::new(), |mut acc, _| {
+                let random_u32 = self.twister.get();
+                let bytes_array = random_u32.to_be_bytes();
+                acc.extend_from_slice(&bytes_array);
+                acc
+            });
+            let xor = xor_bytes(input, &keystream_bytes);
+            output[..input.len()].copy_from_slice(&xor);
+            return Ok(xor.len());
+        }
+        fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
+            // Part of the Crypto API but doesn't apply to SimpleMT. Don't use this
+            return Ok(0);
+        }
+    }
+
+    #[test]
+    fn test_simple_mt() {
+        let mut simple_mt = SimpleMT::new(0x1234u32);
+        let input = "Hello world!".as_bytes();
+        let mut output: Vec<u8> = vec![0u8; input.len()];
+        simple_mt.update(input, &mut output).unwrap();
     }
 
     #[test]
