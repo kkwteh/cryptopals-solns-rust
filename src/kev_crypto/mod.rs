@@ -294,14 +294,13 @@ pub mod kev_crypto {
         pub fn edit(
             &self,
             ciphertext: &mut [u8],
-            key: &[u8],
             offset: usize,
             newtext: &[u8],
         ) -> Result<usize, ErrorStack> {
             // Function used for challenge 25
             // First we recreate the key stream up until the end of the slice.
             let slice_end = offset + newtext.len();
-            if slice_end >= ciphertext.len() {
+            if slice_end > ciphertext.len() {
                 panic!("Ciphertext is not long enough to accommodate new text");
             }
             let num_blocks = (slice_end / BLOCK_SIZE) + 1;
@@ -320,7 +319,7 @@ pub mod kev_crypto {
             let update_usize = ecb.update(&ctr_input, &mut ctr_output).unwrap();
             ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
 
-            // No we just xor the portion to be edited
+            // Now we just xor the portion to be edited
             let xor = xor_bytes(&ctr_output[offset..slice_end], &newtext);
             ciphertext[offset..slice_end].copy_from_slice(&xor);
             return Ok(xor.len());
