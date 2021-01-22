@@ -506,7 +506,7 @@ mod set3 {
         println!("block end {:?}", block_end);
         println!("block start {:?}", block_start);
         println!("block index {:?}", block_index);
-        println!("twister output {:?}", twister_output);
+        println!("recovered twister output {:?}", twister_output);
         let seed = (0..65536)
             .map(|i| {
                 let mut twister = Twister::new_from_seed(i);
@@ -516,14 +516,14 @@ mod set3 {
                     })
                     .count();
                 if twister.get() == twister_output {
-                    i
+                    Some(i)
                 } else {
-                    0
+                    None
                 }
             })
             .max()
             .unwrap();
-        println!("Found seed {:?}", seed);
+        println!("Found seed {:?}", seed.unwrap());
     }
 
     fn mt_oracle(input: &[u8]) -> Vec<u8> {
