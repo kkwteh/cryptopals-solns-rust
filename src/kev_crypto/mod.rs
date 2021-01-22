@@ -290,11 +290,48 @@ pub mod kev_crypto {
                 counter: 0,
             }
         }
+
+        pub fn edit(
+            &self,
+            ciphertext: &mut [u8],
+            key: &[u8],
+            offset: usize,
+            newtext: &[u8],
+        ) -> Result<usize, ErrorStack> {
+            // Function used for challenge 25
+            // First we recreate the key stream up until the end of the slice.
+            let slice_end = offset + newtext.len();
+            if slice_end >= ciphertext.len() {
+                panic!("Ciphertext is not long enough to accommodate new text");
+            }
+            let num_blocks = (slice_end / BLOCK_SIZE) + 1;
+            let mut ctr_input: Vec<u8> = vec![0u8; num_blocks * BLOCK_SIZE];
+            let mut counter: u64 = 0;
+            for block_index in 0..num_blocks {
+                &ctr_input[block_index * BLOCK_SIZE..(block_index * BLOCK_SIZE + 8)]
+                    .copy_from_slice(&self.nonce);
+                let le_bytes = counter.to_le_bytes();
+                &ctr_input[(block_index * BLOCK_SIZE + 8)..(block_index * BLOCK_SIZE + 16)]
+                    .copy_from_slice(&le_bytes);
+                counter += 1;
+            }
+            let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
+            let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt);
+            let update_usize = ecb.update(&ctr_input, &mut ctr_output).unwrap();
+            ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
+
+            // No we just xor the portion to be edited
+            let xor = xor_bytes(&ctr_output[offset..slice_end], &newtext);
+            ciphertext[offset..slice_end].copy_from_slice(&xor);
+            return Ok(xor.len());
+        }
     }
 
     impl Crypto for SimpleCtr {
         // Wikipedia explanation https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)
         fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+            // We encrypt blocks of the form nonce || counter to create a keystream.
+            // This keystream is xor'd with the plaintext to generate the ciphertext.
             let num_blocks = (input.len() / BLOCK_SIZE) + 1;
             let mut ctr_input: Vec<u8> = vec![0u8; num_blocks * BLOCK_SIZE];
             for block_index in 0..num_blocks {
