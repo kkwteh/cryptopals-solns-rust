@@ -277,7 +277,7 @@ pub mod kev_crypto {
     }
 
     pub struct SimpleCtr {
-        ecb: SimpleEcb,
+        key: Vec<u8>,
         nonce: Vec<u8>,
         counter: u64,
     }
@@ -285,7 +285,7 @@ pub mod kev_crypto {
     impl SimpleCtr {
         pub fn new(key: &[u8], nonce: Vec<u8>) -> SimpleCtr {
             SimpleCtr {
-                ecb: SimpleEcb::new(&key, symm::Mode::Encrypt),
+                key: key.to_vec(),
                 nonce: nonce,
                 counter: 0,
             }
@@ -306,8 +306,10 @@ pub mod kev_crypto {
                 self.counter += 1;
             }
             let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
-            let update_usize = self.ecb.update(&ctr_input, &mut ctr_output).unwrap();
-            self.ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
+
+            let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt);
+            let update_usize = ecb.update(&ctr_input, &mut ctr_output).unwrap();
+            ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
             let xor = xor_bytes(&ctr_output[..input.len()], input);
             output[..input.len()].copy_from_slice(&xor);
             return Ok(xor.len());
