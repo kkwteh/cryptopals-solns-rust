@@ -1,14 +1,15 @@
 mod set3 {
     use crate::kev_crypto::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
-        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, Twister, BLOCK_SIZE,
-        MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
+        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, SimpleMT, Twister,
+        BLOCK_SIZE, MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
     };
     use bitvec::prelude::*;
     use lazy_static::lazy_static;
     use openssl::symm;
     use rand;
     use rand::Rng;
+    use std::convert::TryInto;
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
     use std::str;
@@ -489,6 +490,57 @@ mod set3 {
         // 2**16 = 65,536
         // Since we can encrypt a known plain text, we will be able to determine the i'th output of the twister for some i.
         // So, we can simply generate all possible Mersenne twisters and match on the i'th output to determine the seed.
-        //
+        let a_string = "AAAAAAAAAAAAAA".as_bytes();
+        let oracle_output = mt_oracle(a_string);
+        println!("output length {:?}", oracle_output.len());
+        println!("output length / 4 {:?}", oracle_output.len() / 4);
+        // multiple of 4
+        let block_end: usize = (oracle_output.len() / 4) * 4;
+        let block_start: usize = block_end - 4;
+        let a_slice_overlap = &oracle_output[block_start..block_end];
+        let block_index = block_start / 4;
+
+        let keystream_block = xor_bytes(&a_slice_overlap, &"AAAA".as_bytes());
+        let byte_array: [u8; 4] = keystream_block.try_into().unwrap();
+        let twister_output = u32::from_be_bytes(byte_array);
+        println!("block end {:?}", block_end);
+        println!("block start {:?}", block_start);
+        println!("block index {:?}", block_index);
+        println!("twister output {:?}", twister_output);
+        let seed = (0..65536)
+            .map(|i| {
+                let mut twister = Twister::new_from_seed(i);
+                (0..block_index)
+                    .map(|_| {
+                        twister.get();
+                    })
+                    .count();
+                if twister.get() == twister_output {
+                    i
+                } else {
+                    0
+                }
+            })
+            .max()
+            .unwrap();
+        println!("Found seed {:?}", seed);
+    }
+
+    fn mt_oracle(input: &[u8]) -> Vec<u8> {
+        lazy_static! {
+            static ref MT_KEY: u32 = u32::from(rand::thread_rng().gen::<u16>());
+        }
+        println!("MT_KEY {:?}", *MT_KEY);
+        let mut simple_mt = SimpleMT::new(*MT_KEY);
+
+        let mut rng = rand::thread_rng();
+
+        let random_bytes: Vec<u8> = (0..rng.gen_range(100..200))
+            .map(|_| rng.gen::<u8>())
+            .collect();
+        let combined_input = &[&random_bytes, input].concat();
+        let mut output: Vec<u8> = vec![0u8; combined_input.len()];
+        simple_mt.update(combined_input, &mut output).unwrap();
+        output
     }
 }
