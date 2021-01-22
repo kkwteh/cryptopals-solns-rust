@@ -105,4 +105,23 @@ mod set3 {
             Err(_) => {}
         }
     }
+
+    #[test]
+    fn challenge_27() {
+        // Challenge is to crack CBC mode and obtain the key, when IV = KEY.
+        // In the setup, when decryption fails there's an error including the decrypted plaintext.
+        //
+        // Cryptopals hint:
+        // Use your code to encrypt a message that is at least 3 blocks long:
+        // AES-CBC(P_1, P_2, P_3) -> C_1, C_2, C_3
+        // Modify the message (you are now the attacker):
+        // C_1, C_2, C_3 -> C_1, 0, C_1
+        // Decrypt the message (you are now the receiver) and raise the appropriate error if high-ASCII is found.
+        // As the attacker, recovering the plaintext from the error, extract the key:
+        // P'_1 XOR P'_3
+        //
+        // Observation: In the last block, the chain block is 0, so the plaintext returned in the third block will
+        // be the raw decryption of C_1. Now that we know the raw decryption of C_1, we can XOR that with the
+        // first plaintext block to get the initialization vector (which is equal to the key).
+    }
 }
