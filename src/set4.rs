@@ -124,11 +124,22 @@ mod set3 {
         // Observation: In the third block, the chain block is 0, so the plaintext returned in the third block will
         // be the raw decryption of C_1. Now that we know the raw decryption of C_1, we can XOR that with the
         // first plaintext block to get the initialization vector (which is equal to the key).
-        let simple_cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, KEY.clone());
         let plaintext = "YELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINE".as_bytes();
         let ciphertext = challenge_27_encrypt(&plaintext);
-        let decrypted_text = challenge_27_decrypt(&ciphertext).unwrap();
-        println!("{:?}", decrypted_text);
+        let mut edited_ciphertext = vec![0u8; plaintext.len()];
+        &edited_ciphertext[0..16].copy_from_slice(&ciphertext[0..16]);
+        &edited_ciphertext[32..48].copy_from_slice(&ciphertext[0..16]);
+        let decrypt_error = challenge_27_decrypt(&edited_ciphertext);
+        let cracked_key: Vec<u8> = match decrypt_error {
+            Ok(_value) => {
+                panic!("Expected an error when decrypting the edited ciphertext");
+            }
+            Err(error) => {
+                let raw_c1_decryption = &error.plaintext[32..48];
+                xor_bytes(&plaintext[0..16], raw_c1_decryption)
+            }
+        };
+        assert_eq!(cracked_key, KEY.clone());
     }
 
     #[derive(Debug, Eq, PartialEq)]
