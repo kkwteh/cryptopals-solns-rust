@@ -11,6 +11,7 @@ mod set3 {
     use rand::distributions::Alphanumeric;
     use rand::Rng;
     use std::convert::TryInto;
+    use std::fmt;
     use std::fs;
     use std::fs::File;
     use std::io::{self, prelude::*, BufReader};
@@ -120,8 +121,47 @@ mod set3 {
         // As the attacker, recovering the plaintext from the error, extract the key:
         // P'_1 XOR P'_3
         //
-        // Observation: In the last block, the chain block is 0, so the plaintext returned in the third block will
+        // Observation: In the third block, the chain block is 0, so the plaintext returned in the third block will
         // be the raw decryption of C_1. Now that we know the raw decryption of C_1, we can XOR that with the
         // first plaintext block to get the initialization vector (which is equal to the key).
+        let simple_cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, KEY.clone());
+        let plaintext = "YELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINE".as_bytes();
+        let ciphertext = challenge_27_encrypt(&plaintext);
+        let decrypted_text = challenge_27_decrypt(&ciphertext).unwrap();
+        println!("{:?}", decrypted_text);
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct AsciiError {
+        plaintext: Vec<u8>,
+    }
+
+    impl fmt::Display for AsciiError {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(
+                formatter,
+                "{}",
+                &format!("Invalid ascii for plain text {:?}", self.plaintext)
+            )
+        }
+    }
+
+    fn challenge_27_encrypt(input: &[u8]) -> Vec<u8> {
+        let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, KEY.clone());
+        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        cbc.update(input, &mut output).unwrap();
+        let output = output[..input.len()].to_vec();
+        output
+    }
+
+    fn challenge_27_decrypt(input: &[u8]) -> Result<String, AsciiError> {
+        let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Decrypt, KEY.clone());
+        let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
+        cbc.update(input, &mut output).unwrap();
+        let output = output[..input.len()].to_vec();
+        if output.iter().any(|byte| *byte > 127) {
+            return Err(AsciiError { plaintext: output });
+        }
+        Ok(str::from_utf8(&output).unwrap().to_string())
     }
 }
