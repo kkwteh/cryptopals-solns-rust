@@ -5,11 +5,13 @@ mod set3 {
         Twister, BLOCK_SIZE, MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
     };
     use bitvec::prelude::*;
+    use hex_literal::hex;
     use lazy_static::lazy_static;
     use openssl::symm;
     use rand;
     use rand::distributions::Alphanumeric;
     use rand::Rng;
+    use sha1::{Digest, Sha1};
     use std::convert::TryInto;
     use std::fmt;
     use std::fs;
@@ -174,5 +176,32 @@ mod set3 {
             return Err(AsciiError { plaintext: output });
         }
         Ok(str::from_utf8(&output).unwrap().to_string())
+    }
+
+    #[test]
+    fn challenge_28() {
+        let mac = sha1_mac("hello world!".as_bytes());
+        for _ in 0..100 {
+            let crack_attempt: Vec<u8> = (0..16).map(|_| rand::thread_rng().gen::<u8>()).collect();
+            assert_ne!(mac, sha1_mac(&crack_attempt));
+        }
+
+        let mac_guess: Vec<u8> = (0..20).map(|_| rand::thread_rng().gen::<u8>()).collect();
+        for _ in 0..100 {
+            let message_attempt: Vec<u8> =
+                (0..16).map(|_| rand::thread_rng().gen::<u8>()).collect();
+            assert_ne!(mac_guess, sha1_mac(&message_attempt));
+        }
+    }
+
+    fn sha1_mac(input: &[u8]) -> Vec<u8> {
+        let mut hasher = Sha1::new();
+
+        // The compiler told me to do this.. I wish I understood why I have to do this.
+        hasher.update(&*KEY);
+        hasher.update(input);
+
+        let mac: Vec<u8> = hasher.finalize().into_iter().collect();
+        mac
     }
 }
