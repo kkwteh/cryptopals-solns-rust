@@ -4,6 +4,8 @@ mod set3 {
         MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, SimpleEcb, SimpleMT,
         Twister, BLOCK_SIZE, MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
     };
+    use crate::kev_sha1::kev_sha1;
+    use crate::kev_sha1::kev_sha1::{Digest, Sha1};
     use bitvec::prelude::*;
     use hex_literal::hex;
     use lazy_static::lazy_static;
@@ -11,7 +13,6 @@ mod set3 {
     use rand;
     use rand::distributions::Alphanumeric;
     use rand::Rng;
-    use sha1::{Digest, Sha1};
     use std::convert::TryInto;
     use std::fmt;
     use std::fs;
@@ -193,6 +194,9 @@ mod set3 {
             assert_ne!(mac_guess, sha1_mac(&message_attempt));
         }
     }
+
+    #[test]
+    fn test_forged_sha() {}
 
     fn sha1_mac(input: &[u8]) -> Vec<u8> {
         let mut hasher = Sha1::new();
