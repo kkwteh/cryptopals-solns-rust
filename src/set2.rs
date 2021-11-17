@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::kev_crypto::{
-        detect_ecb, pkcs7_padding, random_block, remove_padding, Crypto, PaddingError,
-        PaddingErrorData, SimpleCbc, SimpleEcb,
+        detect_ecb, pkcs7_padding, random_block, remove_padding, Crypto, SimpleCbc, SimpleEcb,
     };
     use lazy_static::lazy_static;
     use openssl::symm;
@@ -13,7 +12,6 @@ mod tests {
     use std::fs;
     use std::iter;
     use std::str;
-
     const BLOCK_SIZE: usize = 16;
 
     lazy_static! {
@@ -66,7 +64,8 @@ mod tests {
             Article nor prepare chicken you him now. Shy merits say advice ten before lovers innate add. She cordially behaviour can attempted estimable. Trees delay fancy noise manor do as an small. Felicity now law securing breeding likewise extended and. Roused either who favour why ham. ".to_owned().into_bytes();
         "Analyzing ECB Output";
         for _ in 0..10 {
-            let crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
+            let crypto: Box<dyn Crypto> =
+                Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt).unwrap());
             let output = encryption_oracle(&input, crypto);
             let is_ecb = detect_ecb(&output);
             println!("{:?}", is_ecb);
@@ -172,7 +171,7 @@ mod tests {
     fn challenge_12_oracle(input: &[u8]) -> Vec<u8> {
         let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
-        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt).unwrap();
         let concatenated = [input, &unknown_string[..]].concat();
         let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
         let update_usize = crypto.update(&concatenated, output.as_mut_slice()).unwrap();
@@ -216,7 +215,7 @@ mod tests {
 
     fn encrypt_profile(profile: &str) -> Vec<u8> {
         // The finalize call writes the partial block at the end of the input.
-        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt).unwrap();
         let mut output: Vec<u8> = vec![0u8; profile.len() + BLOCK_SIZE];
         let profile_bytes = profile.as_bytes();
         let encrypt_usize = crypto.update(profile_bytes, output.as_mut_slice()).unwrap();
@@ -225,7 +224,7 @@ mod tests {
         result
     }
     fn decrypt_profile(input: Vec<u8>) -> String {
-        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Decrypt);
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Decrypt).unwrap();
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
         let decrypt_usize = crypto.update(&input, output.as_mut_slice()).unwrap();
         let finalize_usize = crypto.finalize(&mut output[decrypt_usize..]).unwrap();
@@ -415,7 +414,7 @@ mod tests {
         }
         let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown_string: Vec<u8> = base64::decode(unknown_string).unwrap();
-        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt);
+        let mut crypto = SimpleEcb::new(&KEY, symm::Mode::Encrypt).unwrap();
         let concatenated = [&PREFIX, input, &unknown_string[..]].concat();
         let mut output: Vec<u8> = vec![0u8; concatenated.len() + BLOCK_SIZE];
         let update_usize = crypto.update(&concatenated, output.as_mut_slice()).unwrap();
@@ -442,38 +441,44 @@ mod tests {
             "0123456789012".as_bytes(),
             remove_padding("0123456789012\x03\x03\x03".as_bytes()).unwrap()
         );
-        assert_eq!(
-            Err(PaddingError {
-                data: PaddingErrorData::BadEnd(53, 1)
-            }),
-            remove_padding("0123456789012345".as_bytes())
-        );
+
+        match remove_padding("0123456789012345".as_bytes()) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                err.to_string(),
+                "PaddingErrorData::BadEnd last_byte 53 trailing_copies 1"
+            ),
+        }
         assert_eq!(
             "0123456789012\x02".as_bytes(),
             remove_padding("0123456789012\x02\x02\x02".as_bytes()).unwrap()
         );
-        assert_eq!(
-            Err(PaddingError {
-                data: PaddingErrorData::BadLength(15)
-            }),
-            remove_padding("0123456789012\x02\x02".as_bytes())
-        );
+
+        match remove_padding("0123456789012\x02\x02".as_bytes()) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(err.to_string(), "PaddingErrorData::BadLength 15"),
+        }
+
         assert_eq!(
             "ICE ICE BABY".as_bytes(),
             remove_padding("ICE ICE BABY\x04\x04\x04\x04".as_bytes()).unwrap()
         );
-        assert_eq!(
-            Err(PaddingError {
-                data: PaddingErrorData::BadEnd(5, 4)
-            }),
-            remove_padding("ICE ICE BABY\x05\x05\x05\x05".as_bytes())
-        );
-        assert_eq!(
-            Err(PaddingError {
-                data: PaddingErrorData::BadEnd(4, 1)
-            }),
-            remove_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes())
-        );
+
+        match remove_padding("ICE ICE BABY\x05\x05\x05\x05".as_bytes()) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                err.to_string(),
+                "PaddingErrorData::BadEnd last_byte 5 trailing_copies 4"
+            ),
+        }
+
+        match remove_padding("ICE ICE BABY\x01\x02\x03\x04".as_bytes()) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                err.to_string(),
+                "PaddingErrorData::BadEnd last_byte 4 trailing_copies 1"
+            ),
+        }
     }
 
     fn challenge_16_oracle(input: &str) -> Vec<u8> {

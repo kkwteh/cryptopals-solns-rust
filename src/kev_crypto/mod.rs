@@ -1,6 +1,6 @@
 #![allow(dead_code)]
+use anyhow::{anyhow, Result};
 use lazy_static::lazy_static;
-use openssl::error::ErrorStack;
 use openssl::symm;
 use openssl::symm::{Cipher, Crypter};
 use rand::Rng;
@@ -81,11 +81,9 @@ pub fn pkcs7_padding(input: &mut Vec<u8>, block_length: usize) {
     }
 }
 
-pub fn remove_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
+pub fn remove_padding(input: &[u8]) -> Result<&[u8]> {
     if input.len() % BLOCK_SIZE != 0 {
-        return Err(PaddingError {
-            data: PaddingErrorData::BadLength(input.len()),
-        });
+        return Err(anyhow!("PaddingErrorData::BadLength {}", input.len()));
     }
     let last_byte = input[input.len() - 1];
     let mut trailing_copies = 0;
@@ -99,9 +97,11 @@ pub fn remove_padding(input: &[u8]) -> Result<&[u8], PaddingError> {
     if trailing_copies as u8 >= last_byte {
         Ok(&input[..(input.len() - (last_byte as usize))])
     } else {
-        Err(PaddingError {
-            data: PaddingErrorData::BadEnd(last_byte, trailing_copies),
-        })
+        Err(anyhow!(
+            "PaddingErrorData::BadEnd last_byte {} trailing_copies {}",
+            last_byte,
+            trailing_copies
+        ))
     }
 }
 pub fn is_ascii_character(value: &u8) -> bool {
@@ -109,9 +109,9 @@ pub fn is_ascii_character(value: &u8) -> bool {
 }
 
 pub trait Crypto {
-    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack>;
+    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize>;
     // TODO: remove finalize method from Crypto trait
-    fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack>;
+    fn finalize(&mut self, output: &mut [u8]) -> Result<usize>;
 }
 
 pub struct SimpleEcb {
@@ -119,20 +119,22 @@ pub struct SimpleEcb {
 }
 
 impl SimpleEcb {
-    pub fn new(key: &[u8], mode: symm::Mode) -> SimpleEcb {
+    pub fn new(key: &[u8], mode: symm::Mode) -> Result<SimpleEcb> {
         let cipher = Cipher::aes_128_ecb();
-        let crypter = Crypter::new(cipher, mode, key, None).unwrap();
-        SimpleEcb { crypter }
+        let crypter = Crypter::new(cipher, mode, key, None)?;
+        Ok(SimpleEcb { crypter })
     }
 }
 
 impl Crypto for SimpleEcb {
-    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
-        self.crypter.update(input, output)
+    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
+        let result = self.crypter.update(input, output)?;
+        Ok(result)
     }
 
-    fn finalize(&mut self, output: &mut [u8]) -> Result<usize, ErrorStack> {
-        self.crypter.finalize(output)
+    fn finalize(&mut self, output: &mut [u8]) -> Result<usize> {
+        let result = self.crypter.finalize(output)?;
+        Ok(result)
     }
 }
 
@@ -158,12 +160,12 @@ fn test_simple_ecb() {
     let key = "YELLOW SUBMARINE".to_owned().into_bytes();
     let input = "CHARTREUSE DONUTCHARTREUSE DONUT".to_owned().into_bytes();
     println!("Input {:?}", &input[0..32]);
-    let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Encrypt);
+    let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Encrypt).unwrap();
     let mut output: Vec<u8> = vec![0u8; input.len() + block_size];
     simple_ecb.update(&input, output.as_mut_slice()).unwrap();
     println!("Output {:?}", &output[0..32]);
     println!("Decrypting");
-    let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Decrypt);
+    let mut simple_ecb = SimpleEcb::new(&key, symm::Mode::Decrypt).unwrap();
     let mut decrypt_output: Vec<u8> = vec![0u8; input.len() + block_size];
     simple_ecb
         .update(&output[0..32], decrypt_output.as_mut_slice())
@@ -181,7 +183,7 @@ pub struct SimpleCbc {
 impl SimpleCbc {
     pub fn new(key: &[u8], mode: symm::Mode, iv: Vec<u8>) -> SimpleCbc {
         SimpleCbc {
-            ecb: SimpleEcb::new(&key, mode),
+            ecb: SimpleEcb::new(&key, mode).unwrap(),
             iv: iv,
             mode: mode,
         }
@@ -189,7 +191,7 @@ impl SimpleCbc {
 }
 
 impl Crypto for SimpleCbc {
-    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
         // CBC mode visual https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Cipher_block_chaining_(CBC)
         // Assume input is a multiple of 16
         let num_blocks = input.len() / BLOCK_SIZE;
@@ -231,7 +233,7 @@ impl Crypto for SimpleCbc {
         }
         Ok(input.len())
     }
-    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize> {
         Ok(0)
     }
 }
@@ -291,12 +293,7 @@ impl SimpleCtr {
         }
     }
 
-    pub fn edit(
-        &self,
-        ciphertext: &mut [u8],
-        offset: usize,
-        newtext: &[u8],
-    ) -> Result<usize, ErrorStack> {
+    pub fn edit(&self, ciphertext: &mut [u8], offset: usize, newtext: &[u8]) -> Result<usize> {
         // Function used for challenge 25
         // First we recreate the key stream up until the end of the slice.
         let slice_end = offset + newtext.len();
@@ -315,7 +312,7 @@ impl SimpleCtr {
             counter += 1;
         }
         let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
-        let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt);
+        let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt).unwrap();
         let update_usize = ecb.update(&ctr_input, &mut ctr_output).unwrap();
         ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
 
@@ -328,7 +325,7 @@ impl SimpleCtr {
 
 impl Crypto for SimpleCtr {
     // Wikipedia explanation https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation#Counter_(CTR)
-    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
         // We encrypt blocks of the form nonce || counter to create a keystream.
         // This keystream is xor'd with the plaintext to generate the ciphertext.
         let num_blocks = (input.len() / BLOCK_SIZE) + 1;
@@ -343,7 +340,7 @@ impl Crypto for SimpleCtr {
         }
         let mut ctr_output: Vec<u8> = vec![0u8; ctr_input.len() + BLOCK_SIZE];
 
-        let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt);
+        let mut ecb = SimpleEcb::new(&self.key, symm::Mode::Encrypt).unwrap();
         let update_usize = ecb.update(&ctr_input, &mut ctr_output).unwrap();
         ecb.finalize(&mut ctr_output[update_usize..]).unwrap();
         let xor = xor_bytes(&ctr_output[..input.len()], input);
@@ -351,7 +348,7 @@ impl Crypto for SimpleCtr {
         return Ok(xor.len());
     }
 
-    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize> {
         // Don't use this.
         return Ok(0);
     }
@@ -385,7 +382,7 @@ impl SimpleMT {
 }
 
 impl Crypto for SimpleMT {
-    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn update(&mut self, input: &[u8], output: &mut [u8]) -> Result<usize> {
         let num_blocks = (input.len() / 4) + 1;
         let keystream_bytes = (0..num_blocks).fold(Vec::<u8>::new(), |mut acc, _| {
             let random_u32 = self.twister.get();
@@ -397,7 +394,7 @@ impl Crypto for SimpleMT {
         output[..input.len()].copy_from_slice(&xor);
         return Ok(xor.len());
     }
-    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize, ErrorStack> {
+    fn finalize(&mut self, _output: &mut [u8]) -> Result<usize> {
         // Part of the Crypto API but doesn't apply to SimpleMT. Don't use this
         return Ok(0);
     }

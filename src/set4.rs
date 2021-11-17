@@ -27,7 +27,7 @@ mod tests {
         let input = input.replace("\n", "");
         let input: Vec<u8> = base64::decode(input).unwrap();
         let ecb_key = "YELLOW SUBMARINE".as_bytes();
-        let mut simple_ecb = SimpleEcb::new(&ecb_key, symm::Mode::Decrypt);
+        let mut simple_ecb = SimpleEcb::new(&ecb_key, symm::Mode::Decrypt).unwrap();
         let block_size: usize = 16;
         let mut plaintext: Vec<u8> = vec![0u8; input.len() + block_size];
         simple_ecb.update(&input, &mut plaintext).unwrap();

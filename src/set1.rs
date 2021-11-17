@@ -162,7 +162,7 @@ pub mod tests {
         let input = fs::read_to_string("input/7.txt").unwrap();
         let input = input.replace("\n", "");
         let input: Vec<u8> = base64::decode(input).unwrap();
-        let mut simple_ecb = SimpleEcb::new(key, symm::Mode::Decrypt);
+        let mut simple_ecb = SimpleEcb::new(key, symm::Mode::Decrypt).unwrap();
         let block_size: usize = 16;
         let mut output: Vec<u8> = vec![0u8; input.len() + block_size];
         simple_ecb.update(&input, output.as_mut_slice()).unwrap();
