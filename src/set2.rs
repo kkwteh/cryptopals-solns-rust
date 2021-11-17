@@ -1,18 +1,15 @@
-#[allow(dead_code, unused_imports)]
-mod set2 {
-    use crate::kev_crypto::kev_crypto::{
-        detect_ecb, hamming_distance, hex_string, is_ascii_character, pkcs7_padding, random_block,
-        remove_padding, xor_bytes, Crypto, PaddingError, PaddingErrorData, SimpleCbc, SimpleEcb,
+#[cfg(test)]
+mod tests {
+    use crate::kev_crypto::{
+        detect_ecb, pkcs7_padding, random_block, remove_padding, Crypto, PaddingError,
+        PaddingErrorData, SimpleCbc, SimpleEcb,
     };
     use lazy_static::lazy_static;
-    use openssl::error::ErrorStack;
     use openssl::symm;
     use rand::distributions::Alphanumeric;
     use rand::Rng;
-    use serde::{Deserialize, Serialize};
     use serde_derive::{Deserialize, Serialize};
     use std::collections::HashMap;
-    use std::fmt;
     use std::fs;
     use std::iter;
     use std::str;
@@ -69,7 +66,7 @@ mod set2 {
             Article nor prepare chicken you him now. Shy merits say advice ten before lovers innate add. She cordially behaviour can attempted estimable. Trees delay fancy noise manor do as an small. Felicity now law securing breeding likewise extended and. Roused either who favour why ham. ".to_owned().into_bytes();
         "Analyzing ECB Output";
         for _ in 0..10 {
-            let mut crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
+            let crypto: Box<dyn Crypto> = Box::new(SimpleEcb::new(&KEY, symm::Mode::Encrypt));
             let output = encryption_oracle(&input, crypto);
             let is_ecb = detect_ecb(&output);
             println!("{:?}", is_ecb);
@@ -77,17 +74,11 @@ mod set2 {
         "Analyzing CBC Output";
         for _ in 0..10 {
             let iv = random_block();
-            let mut crypto: Box<dyn Crypto> =
-                Box::new(SimpleCbc::new(&KEY, symm::Mode::Encrypt, iv));
+            let crypto: Box<dyn Crypto> = Box::new(SimpleCbc::new(&KEY, symm::Mode::Encrypt, iv));
             let output = encryption_oracle(&input, crypto);
             let is_ecb = detect_ecb(&output);
             println!("{:?}", is_ecb);
         }
-    }
-
-    enum Encrypter {
-        SimpleCbc,
-        SimpleEcb,
     }
 
     fn encryption_oracle(input: &[u8], mut crypto: Box<dyn Crypto>) -> Vec<u8> {
@@ -498,7 +489,7 @@ mod set2 {
         assert_eq!(plaintext_bytes.len() % BLOCK_SIZE, 0);
         let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, IV.clone());
         let mut output: Vec<u8> = vec![0u8; plaintext_bytes.len() + BLOCK_SIZE];
-        cbc.update(&plaintext_bytes, &mut output);
+        cbc.update(&plaintext_bytes, &mut output).unwrap();
         output[..plaintext_bytes.len()].to_vec()
     }
 

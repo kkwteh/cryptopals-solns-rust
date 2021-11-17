@@ -1,25 +1,18 @@
-mod set3 {
-    use crate::kev_crypto::kev_crypto::{
-        pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
-        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, SimpleEcb, SimpleMT,
-        Twister, BLOCK_SIZE, MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
+#[cfg(test)]
+mod tests {
+    use crate::kev_crypto::{
+        random_block, xor_bytes, Crypto, SimpleCbc, SimpleCtr, SimpleEcb, BLOCK_SIZE,
     };
-    use crate::kev_sha1::kev_sha1;
-    use crate::kev_sha1::kev_sha1::{Digest, Sha1};
-    use bitvec::prelude::*;
-    use hex_literal::hex;
+
+    use crate::kev_sha1::{Digest, Sha1};
+
     use lazy_static::lazy_static;
     use openssl::symm;
     use rand;
-    use rand::distributions::Alphanumeric;
     use rand::Rng;
-    use std::convert::TryInto;
     use std::fmt;
     use std::fs;
-    use std::fs::File;
-    use std::io::{self, prelude::*, BufReader};
     use std::str;
-    use std::time::SystemTime;
     lazy_static! {
         static ref KEY: Vec<u8> = random_block();
     }
@@ -70,7 +63,7 @@ mod set3 {
         let plaintext_bytes: Vec<u8> = plaintext.as_bytes().to_vec();
         let mut ctr = SimpleCtr::new(&KEY, NONCE.clone());
         let mut output: Vec<u8> = vec![0u8; plaintext_bytes.len()];
-        ctr.update(&plaintext_bytes, &mut output);
+        ctr.update(&plaintext_bytes, &mut output).unwrap();
         output
     }
 
@@ -81,12 +74,12 @@ mod set3 {
         Ok(str::from_utf8(&output)?.to_owned())
     }
 
-    fn challenge_26_is_admin(input: &str) -> bool {
-        match input.find(";admin=true;") {
-            Some(_) => true,
-            None => false,
-        }
-    }
+    // fn challenge_26_is_admin(input: &str) -> bool {
+    //     match input.find(";admin=true;") {
+    //         Some(_) => true,
+    //         None => false,
+    //     }
+    // }
 
     #[test]
     fn challenge_26() {
@@ -130,8 +123,8 @@ mod set3 {
         let plaintext = "YELLOW SUBMARINEYELLOW SUBMARINEYELLOW SUBMARINE".as_bytes();
         let ciphertext = challenge_27_encrypt(&plaintext);
         let mut edited_ciphertext = vec![0u8; plaintext.len()];
-        &edited_ciphertext[0..16].copy_from_slice(&ciphertext[0..16]);
-        &edited_ciphertext[32..48].copy_from_slice(&ciphertext[0..16]);
+        edited_ciphertext[0..16].copy_from_slice(&ciphertext[0..16]);
+        edited_ciphertext[32..48].copy_from_slice(&ciphertext[0..16]);
         let decrypt_error = challenge_27_decrypt(&edited_ciphertext);
         let cracked_key: Vec<u8> = match decrypt_error {
             Ok(_value) => {

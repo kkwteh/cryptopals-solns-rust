@@ -1,24 +1,17 @@
-#[allow(dead_code, unused_imports)]
-pub mod set1 {
+#[cfg(test)]
+pub mod tests {
 
-    use crate::kev_crypto::kev_crypto::{
-        hamming_distance, hex_string, is_ascii_character, single_char_xor, xor_bytes, Crypto,
-        MessageCriteria, SimpleEcb,
+    use crate::kev_crypto::{
+        hamming_distance, hex_string, single_char_xor, xor_bytes, Crypto, MessageCriteria,
+        SimpleEcb,
     };
     use base64;
     use hex;
     use hex_literal;
-    use lazy_static::lazy_static;
-    use openssl::error::ErrorStack;
     use openssl::symm;
-    use openssl::symm::{Cipher, Crypter};
-    use std::collections::HashSet;
-    use std::fmt;
     use std::fs;
     use std::fs::File;
-    use std::io::{self, prelude::*, BufReader};
-    use std::iter;
-    use std::ops::Range;
+    use std::io::{prelude::*, BufReader};
     use std::str;
 
     #[test]

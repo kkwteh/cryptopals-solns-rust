@@ -1,8 +1,9 @@
-mod set3 {
-    use crate::kev_crypto::kev_crypto::{
+#[cfg(test)]
+mod tests {
+    use crate::kev_crypto::{
         pkcs7_padding, random_block, remove_padding, single_char_xor, xor_bytes, Crypto,
-        MessageCriteria, PaddingError, PaddingErrorData, SimpleCbc, SimpleCtr, SimpleMT, Twister,
-        BLOCK_SIZE, MT_B, MT_C, MT_D, MT_L, MT_N, MT_S, MT_T, MT_U,
+        MessageCriteria, SimpleCbc, SimpleCtr, SimpleMT, Twister, BLOCK_SIZE, MT_B, MT_C, MT_D,
+        MT_L, MT_N, MT_S, MT_T, MT_U,
     };
     use bitvec::prelude::*;
     use lazy_static::lazy_static;
@@ -11,7 +12,7 @@ mod set3 {
     use rand::Rng;
     use std::convert::TryInto;
     use std::fs::File;
-    use std::io::{self, prelude::*, BufReader};
+    use std::io::{prelude::*, BufReader};
     use std::str;
     use std::time::SystemTime;
     lazy_static! {
@@ -39,14 +40,14 @@ mod set3 {
         pkcs7_padding(&mut input, BLOCK_SIZE);
         let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Encrypt, IV.clone());
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
-        cbc.update(&input, &mut output);
+        cbc.update(&input, &mut output).unwrap();
         output[..input.len()].to_vec()
     }
 
     fn challenge_17_decrypt(input: &[u8]) -> bool {
         let mut cbc = SimpleCbc::new(&KEY, symm::Mode::Decrypt, IV.clone());
         let mut output: Vec<u8> = vec![0u8; input.len() + BLOCK_SIZE];
-        cbc.update(input, &mut output);
+        cbc.update(input, &mut output).unwrap();
         let output = &output[..input.len()];
         let decrypted = remove_padding(&output);
         let result = match decrypted {
@@ -452,7 +453,7 @@ mod set3 {
         let seed = rng.gen::<u32>();
         let mut twister = Twister::new_from_seed(seed);
         let mut cracked_state: [u32; MT_N] = [0; MT_N];
-        for i in (0..MT_N) {
+        for i in 0..MT_N {
             let value = twister.get();
             let untempered = untemper_step(value, Direction::Right, MT_L, MT_D);
             let untempered = untemper_step(untempered, Direction::Left, MT_T, MT_C);

@@ -1,5 +1,5 @@
 #![allow(clippy::many_single_char_names)]
-use crate::kev_sha1::kev_sha1::consts::{BLOCK_LEN, K0, K1, K2, K3};
+use crate::kev_sha1::consts::{BLOCK_LEN, K0, K1, K2, K3};
 use core::convert::TryInto;
 
 #[inline(always)]
